@@ -307,9 +307,23 @@ final class StatusItemController {
             keyEquivalent: ""
         )
         updateItem.target = self
-        contextMenu.addItem(withTitle: L("menu.settings", comment: ""), action: #selector(openSettings), keyEquivalent: ",").target = self
+        updateItem.image = menuSymbol(named: "arrow.clockwise")
+
+        let settingsItem = contextMenu.addItem(
+            withTitle: L("menu.settings", comment: ""),
+            action: #selector(openSettings),
+            keyEquivalent: ","
+        )
+        settingsItem.target = self
+        settingsItem.image = menuSymbol(named: "gearshape")
         contextMenu.addItem(.separator())
         contextMenu.addItem(withTitle: L("menu.quit", comment: ""), action: #selector(quit), keyEquivalent: "q").target = self
+    }
+
+    private func menuSymbol(named name: String) -> NSImage? {
+        let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)
+        image?.isTemplate = true
+        return image
     }
 
     private func bind() {
