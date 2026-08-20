@@ -25,3 +25,13 @@ jobs:
           -configuration Debug -derivedDataPath build/dd
           -clonedSourcePackagesDirPath build/SourcePackages -disablePackageRepositoryCache
           -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test
+      - name: Validate localizations
+        run: swift scripts/validate-localizations.swift
+      - name: Release build
+        run: >-
+          xcodebuild -project StockBar.xcodeproj -scheme StockBar
+          -configuration Release -derivedDataPath build/dd-release
+          -clonedSourcePackagesDirPath build/SourcePackages -disablePackageRepositoryCache
+          ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO build
+      - name: Diff hygiene
+        run: git diff --check

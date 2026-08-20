@@ -1,14 +1,18 @@
 import Foundation
 import Combine
 
-/// 包装 provider 优先级 + Finnhub Key 的偏好。读取自 SettingsRepository,变更时落库 + 通知。
+/// 包装 provider 优先级 + Finnhub Key。普通偏好写入数据库，凭据写入 Keychain。
 @MainActor
 final class DataSourcePreferences: ObservableObject {
     @Published var preferences: [Market: ProviderPreference]
     @Published var finnhubKey: String {
         didSet {
             if oldValue != finnhubKey {
-                try? repo.set(Keys.finnhubKey, finnhubKey)
+                do {
+                    try secrets.set(finnhubKey, for: Keys.finnhubKey)
+                } catch {
+                    Log.app.error("saving Finnhub credential failed: \(String(describing: error), privacy: .public)")
+                }
                 onFinnhubKeyChange?(finnhubKey)
             }
         }
@@ -18,14 +22,16 @@ final class DataSourcePreferences: ObservableObject {
     var onFinnhubKeyChange: ((String) -> Void)?
 
     private let repo: SettingsRepository
+    private let secrets: SecretStoring
 
     enum Keys {
         static let providerPrefs = "provider_prefs"
         static let finnhubKey = "finnhub_api_key"
     }
 
-    init(repo: SettingsRepository) {
+    init(repo: SettingsRepository, secrets: SecretStoring = KeychainSecretStore()) {
         self.repo = repo
+        self.secrets = secrets
         // 加载 prefs
         if let json = repo.string(Keys.providerPrefs),
            let data = json.data(using: .utf8),
@@ -42,7 +48,27 @@ final class DataSourcePreferences: ObservableObject {
         } else {
             self.preferences = ProviderPreference.defaults
         }
-        self.finnhubKey = repo.string(Keys.finnhubKey) ?? ""
+        let legacyKey = repo.string(Keys.finnhubKey)
+        do {
+            if let stored = try secrets.string(for: Keys.finnhubKey) {
+                self.finnhubKey = stored
+            } else if let legacyKey, !legacyKey.isEmpty {
+                try secrets.set(legacyKey, for: Keys.finnhubKey)
+                self.finnhubKey = legacyKey
+            } else {
+                self.finnhubKey = ""
+            }
+            if legacyKey != nil { try repo.remove(Keys.finnhubKey) }
+        } catch {
+            self.finnhubKey = legacyKey ?? ""
+            Log.app.error("migrating Finnhub credential failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    func importLegacyFinnhubKey(_ key: String?) throws {
+        guard let key, !key.isEmpty else { return }
+        try secrets.set(key, for: Keys.finnhubKey)
+        finnhubKey = key
     }
 
     func updatePreferences(_ prefs: [Market: ProviderPreference]) {

@@ -14,13 +14,12 @@ final class AlertEngine {
     }
 
     @discardableResult
-    func evaluate(quotes: [SymbolID: Quote]) -> [Alert] {
+    func evaluate(quotes: [SymbolID: Quote], at now: Date = Date()) -> [Alert] {
         guard let alerts = try? alertsRepo.active() else { return [] }
         var triggered: [Alert] = []
-        let now = Date()
-        let todayKey = Alert.todayKey()
 
         for alert in alerts {
+            let todayKey = alert.todayKey(at: now)
             guard let quote = quotes[alert.symbol] else { continue }
             guard passesGuards(alert: alert, now: now, todayKey: todayKey) else { continue }
             guard matchesAllConditions(alert: alert, quote: quote) else { continue }
@@ -46,18 +45,18 @@ final class AlertEngine {
             if countForToday >= cap { return false }
         }
 
-        // 仅工作日(Asia/Shanghai 时区,周末跳过)
+        // 仅工作日，以预警所属市场的本地日期判断。
         if alert.weekdaysOnly {
             var cal = Calendar(identifier: .gregorian)
-            cal.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+            cal.timeZone = alert.symbol.market.timeZone
             let weekday = cal.component(.weekday, from: now)
             // 1 = Sunday, 7 = Saturday
             if weekday == 1 || weekday == 7 { return false }
         }
 
-        // 仅交易时段(任一市场开盘即可,因为多市场场景下可能有错峰)
+        // 仅预警所属市场交易时段，不能用其他市场开盘状态放行旧行情。
         if alert.tradingHoursOnly {
-            if !clock.anyOpen(at: now) { return false }
+            if clock.status(alert.symbol.market, at: now) != .open { return false }
         }
 
         return true

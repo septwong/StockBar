@@ -37,7 +37,7 @@ struct AlertsPane: View {
                 }
                 TableColumn(L("alerts.col.todayCount", comment: "")) { (a: Alert) in
                     let cap = a.maxTriggersPerDay.map { "/\($0)" } ?? ""
-                    let count = a.lastTriggerDay == Alert.todayKey() ? a.triggerCountToday : 0
+                    let count = a.lastTriggerDay == a.todayKey() ? a.triggerCountToday : 0
                     Text("\(count)\(cap)")
                         .monospacedDigit()
                         .foregroundColor(.secondary)

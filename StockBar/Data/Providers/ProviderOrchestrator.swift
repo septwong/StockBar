@@ -79,6 +79,8 @@ actor ProviderOrchestrator: QuoteProvider {
         let pref = preferences[market] ?? ProviderPreference.defaults[market]!
         let now = Date()
         var lastError: Error?
+        var combined: [SymbolID: Quote] = [:]
+        var missing = Set(symbols)
 
         for pid in pref.order {
             guard pref.enabled[pid] == true else { continue }
@@ -89,10 +91,15 @@ actor ProviderOrchestrator: QuoteProvider {
             if let until = cooldownUntil[cooldownKey], until > now { continue }
 
             do {
-                let result = try await provider.fetch(symbols)
+                let requested = symbols.filter { missing.contains($0) }
+                guard !requested.isEmpty else { break }
+                let result = try await provider.fetch(requested)
                 if !result.isEmpty {
                     Log.quote.info("market=\(market.rawValue, privacy: .public) provider=\(pid.rawValue, privacy: .public) ok (\(result.count) quotes)")
-                    return result
+                    for (symbol, quote) in result where missing.contains(symbol) {
+                        combined[symbol] = quote
+                        missing.remove(symbol)
+                    }
                 }
             } catch {
                 lastError = error
@@ -101,9 +108,12 @@ actor ProviderOrchestrator: QuoteProvider {
             }
         }
 
-        if let lastError = lastError {
+        if combined.isEmpty, let lastError = lastError {
             throw lastError
         }
-        return [:]
+        if !missing.isEmpty {
+            Log.quote.warning("market=\(market.rawValue, privacy: .public) missing \(missing.count) quotes after fallback")
+        }
+        return combined
     }
 }

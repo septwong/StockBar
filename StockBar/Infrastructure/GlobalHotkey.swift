@@ -13,7 +13,7 @@ final class GlobalHotkey {
 
     private var registrations: [HotkeyID: Registration] = [:]
     private var eventHandler: EventHandlerRef?
-    private let signature: OSType = OSType(0x504e4252) // 'PNBR'
+    private let signature: OSType = OSType(0x53544252) // 'STBR'
 
     private init() {}
 

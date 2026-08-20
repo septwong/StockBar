@@ -12,7 +12,7 @@ import CoreGraphics
 ///      也认为大概率在分享。会有少量误报(比如 Zoom 开着但不在会议),但代价是
 ///      ticker 短暂隐藏,可以右键手动恢复。
 ///
-/// 日志:所有检测决策落 /tmp/stockbar-sharing.log。
+/// Debug 构建会把检测决策写入各自的 Application Support 目录；Release 不落盘。
 @MainActor
 final class ScreenSharingMonitor {
     /// 已知和屏幕共享/录制相关的 bundle id。
@@ -156,6 +156,7 @@ final class ScreenSharingMonitor {
     // MARK: 诊断
 
     private func diag(_ msg: String) {
+        #if DEBUG
         let line = "[\(Date())] Sharing: \(msg)\n"
         // 同时三路输出:NSLog(走 Console.app)+ 文件(沙盒友好的 App Support 路径)
         NSLog("StockBar.Sharing: %@", msg)
@@ -169,6 +170,7 @@ final class ScreenSharingMonitor {
                 try? data.write(to: url)
             }
         }
+        #endif
     }
 
     /// 写到 App Support 目录(沙盒能写)。
@@ -179,7 +181,10 @@ final class ScreenSharingMonitor {
             in: .userDomainMask,
             appropriateFor: nil,
             create: true
-        ).appendingPathComponent("StockBar", isDirectory: true) else { return nil }
+        ).appendingPathComponent(
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "StockBar-Dev",
+            isDirectory: true
+        ) else { return nil }
         try? fm.createDirectory(at: base, withIntermediateDirectories: true)
         return base.appendingPathComponent("sharing.log")
     }()

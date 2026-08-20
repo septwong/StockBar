@@ -108,6 +108,13 @@ struct AlertsRepository {
         }
     }
 
+    func replaceAll(_ alerts: [Alert], in db: GRDB.Database) throws {
+        _ = try AlertRecord.deleteAll(db)
+        for alert in alerts {
+            try AlertRecord.from(alert).insert(db)
+        }
+    }
+
     /// 标记触发:更新 lastTriggeredAt + 累加当天计数。
     func markTriggered(id: UUID, at date: Date, todayKey: String) throws {
         try dbPool.write { db in

@@ -1682,6 +1682,13 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "检查中…" } }
       }
     },
+    "update.automaticDownloads" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Automatically download updates" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自动下载更新" } }
+      }
+    },
     "ticker.carouselDwell" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Carousel interval" } },

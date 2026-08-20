@@ -1,5 +1,7 @@
 #include "Base.xcconfig"
 
+GENERATE_INFOPLIST_FILE = NO
+INFOPLIST_FILE = Config/StockBar-Info.plist
 PRODUCT_NAME = StockBar-Dev
 PRODUCT_MODULE_NAME = StockBar
 PRODUCT_BUNDLE_IDENTIFIER = vip.eztool.StockBar.debug

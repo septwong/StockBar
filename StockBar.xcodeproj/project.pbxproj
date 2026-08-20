@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		A10000000000000000000001 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000003 /* GRDB */; };
+		A20000000000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000003 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -26,6 +27,8 @@
 		A10000000000000000000006 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		A10000000000000000000008 /* StockBar-Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "StockBar-Debug.entitlements"; sourceTree = "<group>"; };
 		A10000000000000000000009 /* StockBar.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StockBar.entitlements; sourceTree = "<group>"; };
+		A20000000000000000000009 /* StockBar-Unsigned.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "StockBar-Unsigned.entitlements"; sourceTree = "<group>"; };
+		A2000000000000000000000A /* StockBar-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "StockBar-Info.plist"; sourceTree = "<group>"; };
 		E0DCEDFE3036ABC200A471C2 /* StockBar-Dev.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "StockBar-Dev.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E0DCEE0B3036ABC400A471C2 /* StockBarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = StockBarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -49,6 +52,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000001 /* GRDB in Frameworks */,
+				A20000000000000000000001 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -70,6 +74,8 @@
 				A10000000000000000000006 /* Release.xcconfig */,
 				A10000000000000000000008 /* StockBar-Debug.entitlements */,
 				A10000000000000000000009 /* StockBar.entitlements */,
+				A20000000000000000000009 /* StockBar-Unsigned.entitlements */,
+				A2000000000000000000000A /* StockBar-Info.plist */,
 			);
 			path = Config;
 			sourceTree = "<group>";
@@ -114,6 +120,7 @@
 			name = StockBar;
 			packageProductDependencies = (
 				A10000000000000000000003 /* GRDB */,
+				A20000000000000000000003 /* Sparkle */,
 			);
 			productName = StockBar;
 			productReference = E0DCEDFE3036ABC200A471C2 /* StockBar-Dev.app */;
@@ -173,6 +180,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				A10000000000000000000002 /* XCRemoteSwiftPackageReference "GRDB" */,
+				A20000000000000000000002 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E0DCEDFF3036ABC200A471C2 /* Products */;
@@ -356,8 +364,8 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
 			};
 			name = Debug;
 		};
@@ -369,8 +377,8 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
 			};
 			name = Release;
 		};
@@ -453,6 +461,14 @@
 				minimumVersion = 6.29.0;
 			};
 		};
+		A20000000000000000000002 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.9.5;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -460,6 +476,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A10000000000000000000002 /* XCRemoteSwiftPackageReference "GRDB" */;
 			productName = GRDB;
+		};
+		A20000000000000000000003 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A20000000000000000000002 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

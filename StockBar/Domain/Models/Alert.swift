@@ -103,11 +103,17 @@ struct Alert: Equatable, Codable, Sendable, Identifiable {
         return date.timeIntervalSince(last) < TimeInterval(cooldownSeconds)
     }
 
-    /// 当前日期(market 本地时区,A 股用上海)
-    static func todayKey(in tz: TimeZone = TimeZone(identifier: "Asia/Shanghai")!) -> String {
+    /// 指定时刻在市场本地时区的日期键。
+    static func todayKey(at date: Date = Date(), in tz: TimeZone) -> String {
         let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.calendar = Calendar(identifier: .gregorian)
         fmt.dateFormat = "yyyy-MM-dd"
         fmt.timeZone = tz
-        return fmt.string(from: Date())
+        return fmt.string(from: date)
+    }
+
+    func todayKey(at date: Date = Date()) -> String {
+        Self.todayKey(at: date, in: symbol.market.timeZone)
     }
 }

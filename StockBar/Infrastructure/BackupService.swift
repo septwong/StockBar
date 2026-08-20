@@ -10,7 +10,7 @@ struct BackupBundle: Codable {
     let holdings: [Holding]
     let watchlist: [WatchItem]
     let alerts: [Alert]
-    /// 全量 appSetting 表(包含语言、主题、配色、Provider Key、Hotkey 等所有 key-value)。
+    /// 可移植的非敏感设置。API Key 等凭据永不导出。
     let settings: [String: String]
 
     static let currentSchemaVersion: Int = 1
@@ -34,10 +34,10 @@ final class BackupService {
     // MARK: 导出
 
     func makeBundle() throws -> BackupBundle {
-        let holdings = (try? container.holdingsRepo.all()) ?? []
-        let watchlist = (try? container.watchlistRepo.all()) ?? []
-        let alerts = (try? container.alertsRepo.all()) ?? []
-        let settings = (try? container.settingsRepo.allEntries()) ?? [:]
+        let holdings = try container.holdingsRepo.all()
+        let watchlist = try container.watchlistRepo.all()
+        let alerts = try container.alertsRepo.all()
+        let settings = Self.sanitizedSettings(try container.settingsRepo.allEntries())
         let version = AppVersion.short
         return BackupBundle(
             schemaVersion: BackupBundle.currentSchemaVersion,
@@ -73,21 +73,32 @@ final class BackupService {
             throw BackupError.unsupportedSchema(bundle.schemaVersion)
         }
 
-        try container.holdingsRepo.deleteAll()
-        try container.watchlistRepo.deleteAll()
-        try container.alertsRepo.deleteAll()
-        try container.settingsRepo.replaceAll(bundle.settings)
+        let legacyFinnhubKey = bundle.settings[DataSourcePreferences.Keys.finnhubKey]
+        let settings = Self.sanitizedSettings(bundle.settings)
+        // Credential storage is outside SQLite. Fail before replacing user data
+        // if a legacy backup's secret cannot be saved securely.
+        try container.dataSourcePrefs.importLegacyFinnhubKey(legacyFinnhubKey)
 
-        for h in bundle.holdings { try container.holdingsRepo.upsert(h) }
-        for w in bundle.watchlist { try container.watchlistRepo.upsert(w) }
-        for a in bundle.alerts { try container.alertsRepo.upsert(a) }
-
+        // One pool write is one SQLite transaction. Any insert failure restores
+        // every table instead of leaving a partially imported portfolio.
+        try container.database.dbPool.write { db in
+            try container.holdingsRepo.replaceAll(bundle.holdings, in: db)
+            try container.watchlistRepo.replaceAll(bundle.watchlist, in: db)
+            try container.alertsRepo.replaceAll(bundle.alerts, in: db)
+            try container.settingsRepo.replaceAll(settings, in: db)
+        }
         return ImportSummary(
             holdingsCount: bundle.holdings.count,
             watchlistCount: bundle.watchlist.count,
             alertsCount: bundle.alerts.count,
-            settingsCount: bundle.settings.count
+            settingsCount: settings.count
         )
+    }
+
+    static func sanitizedSettings(_ settings: [String: String]) -> [String: String] {
+        var result = settings
+        result.removeValue(forKey: DataSourcePreferences.Keys.finnhubKey)
+        return result
     }
 
     // MARK: NSPanel 工具

@@ -117,8 +117,9 @@ final class NotificationService: NSObject, ObservableObject {
     }
 
     private func diag(_ msg: String) {
+        #if DEBUG
         let line = "[\(Date())] Notification: \(msg)\n"
-        let url = URL(fileURLWithPath: "/tmp/stockbar-alerts.log")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("stockbar-dev-alerts.log")
         if let data = line.data(using: .utf8) {
             if let handle = try? FileHandle(forWritingTo: url) {
                 _ = try? handle.seekToEnd()
@@ -128,6 +129,7 @@ final class NotificationService: NSObject, ObservableObject {
                 try? data.write(to: url)
             }
         }
+        #endif
     }
 }
 

@@ -84,6 +84,13 @@ struct HoldingsRepository {
         }
     }
 
+    func replaceAll(_ holdings: [Holding], in db: GRDB.Database) throws {
+        _ = try HoldingRecord.deleteAll(db)
+        for holding in holdings {
+            try HoldingRecord.from(holding).insert(db)
+        }
+    }
+
     /// 用户拖拽改顺序后,把当前完整 id 序列 → 各自 sortOrder = 数组下标。
     /// 一次性 batch 写,避免 N 次写盘。
     func reorder(ids: [UUID]) throws {

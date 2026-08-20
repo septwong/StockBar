@@ -65,6 +65,13 @@ struct WatchlistRepository {
         }
     }
 
+    func replaceAll(_ items: [WatchItem], in db: GRDB.Database) throws {
+        _ = try WatchRecord.deleteAll(db)
+        for item in items {
+            try WatchRecord.from(item).insert(db)
+        }
+    }
+
     /// 用户拖拽改顺序后,把当前完整 id 序列 → 各自 order = 数组下标。
     func reorder(ids: [UUID]) throws {
         try dbPool.write { db in

@@ -18,7 +18,7 @@
 - 数据目录分别使用 `StockBar` 和 `StockBar-Dev`，数据库名为 `stockbar.sqlite`，偏好键使用 `stockbar.` 前缀。
 - 不探测、复制或迁移其他应用的数据库及偏好设置。
 - 保持 `LSUIElement` 菜单栏应用形态，不默认创建普通主窗口。
-- 自动更新保持关闭；除非用户作出新的发布决策，不恢复启动检查或更新入口。
+- 自动更新使用 Sparkle，稳定版默认定期检查更新，菜单栏与“关于”页面均保留手动检查入口；Debug 构建不自动检查。
 - 不修改任何位于当前仓库之外的源项目。
 
 ## 品牌资产
@@ -43,7 +43,7 @@ git diff --check
 
 - Release 相关变更至少使用 `CODE_SIGNING_ALLOWED=NO` 完成 Release 构建。
 - 品牌或身份变更后，搜索旧品牌名称、旧 Bundle ID 和原仓库地址；除迁移历史与第三方声明外不应残留。
-- 不启用正式 Release workflow，不假定本机具备签名或公证凭据。
+- 暂不启用自动 Release workflow；本地发布脚本生成通用二进制、DMG、ZIP、签名 appcast 和校验和。没有 Developer ID 时使用 ad-hoc 签名并明确安装提示。
 
 ## Git
 

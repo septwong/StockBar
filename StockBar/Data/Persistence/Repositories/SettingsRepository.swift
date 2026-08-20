@@ -23,6 +23,12 @@ struct SettingsRepository {
         }
     }
 
+    func remove(_ key: String) throws {
+        _ = try dbPool.write { db in
+            try SettingRecord.deleteOne(db, key: key)
+        }
+    }
+
     /// 导出/备份用:返回所有 key-value。
     func allEntries() throws -> [String: String] {
         try dbPool.read { db in
@@ -39,6 +45,13 @@ struct SettingsRepository {
             for (k, v) in entries {
                 try SettingRecord(key: k, value: v).insert(db)
             }
+        }
+    }
+
+    func replaceAll(_ entries: [String: String], in db: GRDB.Database) throws {
+        try db.execute(sql: "DELETE FROM appSetting")
+        for (key, value) in entries {
+            try SettingRecord(key: key, value: value).insert(db)
         }
     }
 

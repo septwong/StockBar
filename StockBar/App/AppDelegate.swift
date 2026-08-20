@@ -67,6 +67,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
             self.statusController = status
 
+            // Start Sparkle's scheduler. Debug disables automatic checks but
+            // keeps the manual action available for feed testing.
+            _ = Updater.shared
+
             // 网络状态 → 刷新泵
             container.networkMonitor.onChange = { [weak container] offline in
                 container?.refresher.setOffline(offline)
