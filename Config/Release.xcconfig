@@ -1,0 +1,7 @@
+#include "Base.xcconfig"
+
+PRODUCT_NAME = StockBar
+PRODUCT_MODULE_NAME = StockBar
+PRODUCT_BUNDLE_IDENTIFIER = vip.eztool.StockBar
+BUNDLE_DISPLAY_NAME = StockBar
+CODE_SIGN_ENTITLEMENTS = Config/StockBar.entitlements

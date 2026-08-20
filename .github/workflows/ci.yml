@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Xcode version
+        run: xcodebuild -version
+      - name: Resolve packages
+        run: >-
+          xcodebuild -resolvePackageDependencies -project StockBar.xcodeproj -scheme StockBar
+          -clonedSourcePackagesDirPath build/SourcePackages -disablePackageRepositoryCache
+      - name: Build and test
+        run: >-
+          xcodebuild -project StockBar.xcodeproj -scheme StockBar
+          -configuration Debug -derivedDataPath build/dd
+          -clonedSourcePackagesDirPath build/SourcePackages -disablePackageRepositoryCache
+          -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test

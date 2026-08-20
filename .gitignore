@@ -1,0 +1,30 @@
+# Xcode build products and user state
+build/
+DerivedData/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcuserstate
+*.moved-aside
+*.xccheckout
+*.xcscmblueprint
+
+# Swift Package Manager caches (Package.resolved is intentionally tracked)
+.build/
+.swiftpm/
+
+# macOS and IDE files
+.DS_Store
+.AppleDouble
+._*
+.vscode/
+.idea/
+docs/
+
+# Local data and release credentials
+*.log
+stockbar.sqlite
+stockbar.sqlite-*
+.env
+.env.local
+*.p12
+*.mobileprovision
