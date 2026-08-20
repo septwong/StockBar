@@ -129,7 +129,7 @@ private struct FXPaneContent: View {
             }
 
             Section(header: Text(L("fx.source", comment: "")).font(.headline)) {
-                Text(L("fx.source.eastmoney", comment: ""))
+                Text(L("fx.source.fallback", comment: ""))
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
             }

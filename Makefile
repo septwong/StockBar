@@ -10,10 +10,11 @@ APP_NAME := StockBar
 DEV_APP_NAME := StockBar-Dev
 DEV_BUNDLE_ID := vip.eztool.StockBar.debug
 DEV_APP_PATH := $(DERIVED)/Build/Products/Debug/$(DEV_APP_NAME).app
-VERSION ?= 1.0.0
-BUILD_NUMBER ?= 1
+VERSION ?= 1.0.1
+BUILD_NUMBER ?= 2
 ARCHS ?= arm64 x86_64
 BUILD_DIR := build/Release
+ARCHIVE_PATH := build/$(APP_NAME).xcarchive
 APP_PATH := $(BUILD_DIR)/$(APP_NAME).app
 DMG_PATH := build/$(APP_NAME)-$(VERSION).dmg
 ZIP_PATH := build/$(APP_NAME)-$(VERSION).zip
@@ -73,14 +74,15 @@ icons:
 .PHONY: release-build
 release-build: resolve
 	@test "$(VERSION)" = "$$(printf '%s' "$(VERSION)" | sed -E 's/^v//')" || (echo "✗ VERSION must not include a v prefix" && exit 1)
-	@rm -rf "$(BUILD_DIR)"
-	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration Release -derivedDataPath $(DERIVED) $(PACKAGE_ARGS) \
+	@rm -rf "$(BUILD_DIR)" "$(ARCHIVE_PATH)"
+	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration Release -derivedDataPath $(DERIVED) -archivePath "$(ARCHIVE_PATH)" $(PACKAGE_ARGS) \
 		MARKETING_VERSION=$(VERSION) CURRENT_PROJECT_VERSION=$(BUILD_NUMBER) \
 		ARCHS="$(ARCHS)" ONLY_ACTIVE_ARCH=NO \
-		CODE_SIGNING_ALLOWED=NO build
+		CODE_SIGNING_ALLOWED=NO archive
 	mkdir -p "$(BUILD_DIR)"
-	ditto "$(DERIVED)/Build/Products/Release/$(APP_NAME).app" "$(APP_PATH)"
+	ditto "$(ARCHIVE_PATH)/Products/Applications/$(APP_NAME).app" "$(APP_PATH)"
 	scripts/sign-adhoc.sh "$(APP_PATH)"
+	@! (otool -l "$(APP_PATH)/Contents/MacOS/$(APP_NAME)" | grep -E '__llvm_prf|__LLVM_COV' >/dev/null) || (echo "✗ Release app still contains coverage sections" && exit 1)
 	@echo "✓ Built $(APP_PATH)"
 
 .PHONY: zip

@@ -7,3 +7,13 @@ PRODUCT_MODULE_NAME = StockBar
 PRODUCT_BUNDLE_IDENTIFIER = vip.eztool.StockBar
 BUNDLE_DISPLAY_NAME = StockBar
 CODE_SIGN_ENTITLEMENTS = Config/StockBar.entitlements
+
+// Release artifacts must not contain test coverage instrumentation or the
+// unstripped build product that Xcode emits for a normal `build` action.
+ENABLE_CODE_COVERAGE = NO
+CLANG_COVERAGE_MAPPING = NO
+DEAD_CODE_STRIPPING = YES
+COPY_PHASE_STRIP = YES
+DEPLOYMENT_POSTPROCESSING = YES
+STRIP_INSTALLED_PRODUCT = YES
+STRIP_SWIFT_SYMBOLS = YES

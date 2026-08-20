@@ -68,7 +68,11 @@ final class DependencyContainer {
         self.indexService = IndexService()
         self.symbolSearch = SymbolSearch()
 
-        let fxProvider = EastMoneyFXProvider()
+        let fxProvider = FallbackFXProvider(providers: [
+            TencentFXProvider(),
+            EastMoneyFXProvider(),
+            FrankfurterFXProvider()
+        ])
         let fx = FXService(provider: fxProvider, cacheRepo: fxCacheRepo)
         self.fx = fx
 

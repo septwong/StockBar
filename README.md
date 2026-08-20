@@ -1,31 +1,39 @@
 # StockBar
 
-StockBar 是一款原生 macOS 菜单栏行情工具，用较少的屏幕空间展示市场行情、持仓盈亏、自选股、指数、汇率和价格预警。
+StockBar 是一款轻量的 macOS 菜单栏行情工具，让你无需打开完整的交易软件，也能随时查看关注的市场动态。
 
 ![StockBar App Icon](StockBar/Resources/Assets.xcassets/AppIcon.appiconset/icon_256.png)
 
-## 功能
+它常驻在菜单栏中，以紧凑的方式展示股票、指数、汇率和持仓盈亏。你可以根据自己的关注重点调整展示内容，并在价格达到目标时收到提醒。
+
+## 主要功能
 
 - 支持 A 股、港股、美股、指数和汇率行情
-- 菜单栏滚动、轮播、紧凑和极简显示模式
-- 持仓盈亏、自选股与价格预警
-- 多数据源优先级、股票搜索与网络状态处理
-- 中英文界面、隐私模式、全局快捷键和涨跌配色
-- CSV/JSON 导入导出、备份恢复与登录启动
-- Sparkle 应用内更新，更新包使用 EdDSA 签名验证
+- 在菜单栏快速查看行情，支持滚动、轮播、紧凑和极简模式
+- 管理自选股和持仓，直观查看涨跌与盈亏
+- 设置价格预警，及时关注重要波动
+- 自定义涨跌颜色、快捷键和显示方式
+- 支持隐私模式、中英文界面和登录时启动
+- 支持数据导入、导出与备份恢复
 
 ## 系统要求
 
 - macOS 13.0 或更高版本
-- Xcode 26 或兼容版本
-- Swift 5
 - Apple Silicon 或 Intel Mac
 
 ## 安装
 
 从 [GitHub Releases](https://github.com/septwong/StockBar/releases) 下载最新的 `StockBar-*.dmg`，将 StockBar 拖入“应用程序”。
 
-当前发布版本尚未经过 Apple Developer ID 签名和公证。首次启动时请在 Finder 中右键 StockBar 并选择“打开”；如仍被拦截，请在“系统设置 → 隐私与安全”中选择“仍要打开”。请勿通过关闭 Gatekeeper 或批量移除系统安全属性来安装。
+当前发布版本尚未经过 Apple Developer ID 签名和公证。首次启动时请在 Finder 中右键 StockBar 并选择“打开”；如仍被拦截，请在“系统设置 → 隐私与安全”中选择“仍要打开”。
+
+如果以上方法仍无法打开，请先确认 StockBar 安装包来自本项目的 GitHub Releases，然后打开“终端”，执行以下命令移除该应用的隔离属性，再重新启动 StockBar：
+
+```bash
+sudo xattr -rd com.apple.quarantine /Applications/StockBar.app
+```
+
+执行时需要输入当前 Mac 用户的登录密码；终端不会显示输入的密码或占位符，这是正常现象。该命令应仅用于上述明确的 StockBar 应用路径，请勿对“应用程序”目录或其他宽泛路径批量执行。
 
 每个 Release 同时提供 `SHA256SUMS.txt`。可在终端中校验：
 
@@ -33,49 +41,14 @@ StockBar 是一款原生 macOS 菜单栏行情工具，用较少的屏幕空间�
 shasum -a 256 -c SHA256SUMS.txt
 ```
 
-## 开发
+## 开始使用
 
-首次构建会通过 Swift Package Manager 解析 GRDB 6.29.x。
+启动 StockBar 后，它会显示在 macOS 菜单栏中。点击图标即可添加自选标的、记录持仓或调整显示方式；更多选项可在设置页面中配置。
 
-```bash
-make build
-make test
-make run
-```
+## 隐私
 
-也可以直接打开 `StockBar.xcodeproj` 并运行 `StockBar` scheme。Debug 产品名为 `StockBar-Dev`，Bundle ID 为 `vip.eztool.StockBar.debug`。
-
-常用命令：
-
-```bash
-make icons                    # 从品牌母版重新生成全套 AppIcon
-make release-build VERSION=1.0.0 BUILD_NUMBER=1
-make package VERSION=1.0.0 BUILD_NUMBER=1
-make verify-release VERSION=1.0.0 BUILD_NUMBER=1
-# 工作区干净且 main 已推送后：
-make publish VERSION=1.0.0 BUILD_NUMBER=1
-```
-
-## 数据与隐私
-
-StockBar 的数据库和偏好设置与其他应用完全隔离：
-
-- Release 数据目录：`Application Support/StockBar`
-- Debug 数据目录：`Application Support/StockBar-Dev`
-- 数据库：`stockbar.sqlite`
-- UserDefaults 前缀：`stockbar.`
-
-应用会按用户配置访问行情与汇率数据源。项目不包含旧应用的数据迁移逻辑，也不会读取或修改其他应用的数据库和偏好设置。
-
-## 项目文档
-
-- [第三方代码声明](THIRD_PARTY_NOTICES.md)
-- [开发代理约定](AGENTS.md)
-
-## 更新与隐私
-
-应用通过 GitHub Releases 获取更新目录和安装包。自动检查默认开启，自动下载可在“关于”页面关闭；更新压缩包与 Feed 均由 Sparkle EdDSA 签名验证。Finnhub API Key 保存在 macOS Keychain，不会写入数据库、备份或日志。
+StockBar 的数据保存在本机，不会读取或修改其他应用的数据。行情服务所需的 API Key 保存在 macOS 钥匙串中，不会写入数据库、备份或日志。
 
 ## 许可证
 
-StockBar 自有代码采用 [MIT License](LICENSE)。仓库也包含源自上游项目的 MIT 许可代码，详情见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+StockBar 采用 [MIT License](LICENSE)。第三方代码信息见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
