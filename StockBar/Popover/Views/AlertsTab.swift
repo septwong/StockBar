@@ -34,7 +34,7 @@ struct AlertsTab: View {
                 .font(.system(size: 12))
                 .foregroundColor(.secondary)
             Button(L("alerts.addFirst", comment: "")) {
-                SettingsWindowController.shared.show()
+                SettingsWindowController.shared.show(initialAction: .addAlert)
             }
             .controlSize(.small)
         }
