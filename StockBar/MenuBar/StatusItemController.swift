@@ -13,6 +13,8 @@ final class StatusItemController {
     private let prefs: TickerPreferences
     private let clock: MarketClock
     private let settingsRepo: SettingsRepository
+    private let holdingsRepo: HoldingsRepository
+    private let watchlistRepo: WatchlistRepository
     private var renderer: TickerRenderer
     private var cancellables = Set<AnyCancellable>()
     private var contextMenu: NSMenu
@@ -20,19 +22,25 @@ final class StatusItemController {
     private var privacyHidden: Bool = false
     private var currentMode: TickerDisplayMode = .scroll
     private var lockedPopoverLength: CGFloat?
+    /// MarketClock 没有发布状态变化,用轻量定时器让休市暂停在开收盘时自动跟随。
+    private var animationPauseTimer: Timer?
 
     init(
         refresher: QuoteRefresher,
         popoverController: PopoverController,
         prefs: TickerPreferences,
         clock: MarketClock,
-        settingsRepo: SettingsRepository
+        settingsRepo: SettingsRepository,
+        holdingsRepo: HoldingsRepository,
+        watchlistRepo: WatchlistRepository
     ) {
         self.refresher = refresher
         self.popoverController = popoverController
         self.prefs = prefs
         self.clock = clock
         self.settingsRepo = settingsRepo
+        self.holdingsRepo = holdingsRepo
+        self.watchlistRepo = watchlistRepo
         self.renderer = TickerRenderer(scheme: prefs.colorScheme)
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         // autosaveName 让 macOS 持久化用户 ⌘-拖到的位置,下次启动不重置。
@@ -60,6 +68,7 @@ final class StatusItemController {
         }
         applyPrefs()
         bind()
+        startAnimationPauseTracking()
     }
 
     private func applyPrefs() {
@@ -79,6 +88,8 @@ final class StatusItemController {
             tickerView.preferredTotalWidth = prefs.carouselAutoWidth ? nil : CGFloat(prefs.carouselMenuBarWidth)
         case .compact:
             tickerView.preferredTotalWidth = prefs.compactAutoWidth ? nil : CGFloat(prefs.compactMenuBarWidth)
+        case .singleQuote:
+            tickerView.preferredTotalWidth = prefs.singleQuoteAutoWidth ? nil : CGFloat(prefs.singleQuoteMenuBarWidth)
         case .minimal:
             tickerView.preferredTotalWidth = nil
         case .scrollNoCode:
@@ -101,9 +112,16 @@ final class StatusItemController {
         if let minimal = tickerView as? MinimalTickerView {
             minimal.scheme = prefs.colorScheme
         }
+        if let singleQuote = tickerView as? SingleQuoteTickerView {
+            singleQuote.scheme = prefs.colorScheme
+        }
+        updateAnimationPauseState()
+        applyQuotes(refresher.quotes)
+    }
+
+    private func updateAnimationPauseState() {
         let shouldPause = prefs.pauseWhenClosed && !clock.anyOpen()
         tickerView.setPaused(shouldPause)
-        applyQuotes(refresher.quotes)
     }
 
     /// 创建对应模式的视图实例。
@@ -116,6 +134,10 @@ final class StatusItemController {
             return CarouselTickerView(frame: frame)
         case .compact:
             let v = CompactTickerView(frame: frame)
+            v.scheme = scheme
+            return v
+        case .singleQuote:
+            let v = SingleQuoteTickerView(frame: frame)
             v.scheme = scheme
             return v
         case .minimal:
@@ -179,6 +201,17 @@ final class StatusItemController {
 
     deinit {
         mouseMovedMonitors.forEach { NSEvent.removeMonitor($0) }
+        animationPauseTimer?.invalidate()
+    }
+
+    /// 每几秒重新检查一次市场状态,覆盖开盘/收盘发生在两次行情刷新之间的情况。
+    private func startAnimationPauseTracking() {
+        animationPauseTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.updateAnimationPauseState()
+            }
+        }
+        animationPauseTimer?.tolerance = 1
     }
 
     /// 把当前 tickerView 接到 button:订阅内容变化 → 渲染 NSImage → 写回 button.image。
@@ -242,12 +275,40 @@ final class StatusItemController {
                 totalAssets: prefs.showTotalAssets ? snap.totalAssets : nil,
                 baseCurrency: snap.baseCurrency
             ))
+        case .singleQuote:
+            guard let view = tickerView as? SingleQuoteTickerView else { return }
+            let selected = prefs.singleQuoteSymbol
+            let name = selected.flatMap(singleQuoteName)
+            let quote = selected.flatMap { quotes[$0] }
+            if let selected, let name {
+                view.update(content: SingleQuoteTickerView.Content(
+                    symbol: selected,
+                    name: name,
+                    price: quote?.price,
+                    changePct: quote?.changePct
+                ))
+            } else {
+                view.update(content: nil)
+            }
         case .minimal:
             guard let view = tickerView as? MinimalTickerView else { return }
             let snap = refresher.snapshot
             view.update(content: minimalContent(snap: snap, metric: prefs.minimalMetric))
         }
         statusItem.length = lockedPopoverLength ?? tickerView.totalWidth
+    }
+
+    /// 单股模式只允许展示仍存在于持仓或自选中的股票;行情缺失时由视图显示占位符。
+    private func singleQuoteName(for symbol: SymbolID) -> String? {
+        if let holdings = try? holdingsRepo.all(),
+           let holding = holdings.first(where: { $0.symbol == symbol }) {
+            return holding.name
+        }
+        if let watchlist = try? watchlistRepo.all(),
+           let watch = watchlist.first(where: { $0.symbol == symbol }) {
+            return watch.name
+        }
+        return nil
     }
 
     private func minimalContent(snap: PortfolioSnapshot, metric: MinimalMetric) -> MinimalTickerView.Content? {

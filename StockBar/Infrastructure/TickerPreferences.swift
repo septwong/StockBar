@@ -81,6 +81,16 @@ final class TickerPreferences: ObservableObject {
             }
         }
     }
+    @Published var singleQuoteMenuBarWidth: Int {
+        didSet {
+            let clamped = Self.clampSingleQuoteMenuBarWidth(singleQuoteMenuBarWidth)
+            if clamped != singleQuoteMenuBarWidth {
+                singleQuoteMenuBarWidth = clamped
+            } else {
+                try? repo.set(SettingsRepository.Keys.tickerSingleQuoteMenuBarWidth, "\(singleQuoteMenuBarWidth)")
+            }
+        }
+    }
     @Published var scrollAutoWidth: Bool {
         didSet { try? repo.set(SettingsRepository.Keys.tickerScrollAutoWidth, scrollAutoWidth ? "1" : "0") }
     }
@@ -89,6 +99,9 @@ final class TickerPreferences: ObservableObject {
     }
     @Published var compactAutoWidth: Bool {
         didSet { try? repo.set(SettingsRepository.Keys.tickerCompactAutoWidth, compactAutoWidth ? "1" : "0") }
+    }
+    @Published var singleQuoteAutoWidth: Bool {
+        didSet { try? repo.set(SettingsRepository.Keys.tickerSingleQuoteAutoWidth, singleQuoteAutoWidth ? "1" : "0") }
     }
     /// 哪些大盘指数显示在滚动条中(存 IndexDescriptor.id 集合)。
     @Published var tickerIndexIDs: Set<String> {
@@ -102,6 +115,18 @@ final class TickerPreferences: ObservableObject {
     /// 菜单栏展现形式。
     @Published var displayMode: TickerDisplayMode {
         didSet { try? repo.set(SettingsRepository.Keys.tickerDisplayMode, displayMode.rawValue) }
+    }
+    /// 固定(单股)模式下显示的股票。保存为 SymbolID 的 Codable JSON。
+    @Published var singleQuoteSymbol: SymbolID? {
+        didSet {
+            guard let singleQuoteSymbol,
+                  let data = try? JSONEncoder().encode(singleQuoteSymbol),
+                  let json = String(data: data, encoding: .utf8) else {
+                try? repo.remove(SettingsRepository.Keys.tickerSingleQuoteSymbol)
+                return
+            }
+            try? repo.set(SettingsRepository.Keys.tickerSingleQuoteSymbol, json)
+        }
     }
     /// 极简模式下显示哪个汇总指标(today / total / allTime)。
     @Published var minimalMetric: MinimalMetric {
@@ -131,6 +156,10 @@ final class TickerPreferences: ObservableObject {
 
     private static func clampCompactMenuBarWidth(_ value: Int) -> Int {
         min(360, max(60, value))
+    }
+
+    private static func clampSingleQuoteMenuBarWidth(_ value: Int) -> Int {
+        min(360, max(100, value))
     }
 
     init(repo: SettingsRepository) {
@@ -165,6 +194,13 @@ final class TickerPreferences: ObservableObject {
             try? repo.set(SettingsRepository.Keys.tickerShowQuoteCode, "0")
         }
         self.showQuoteName = repo.string(SettingsRepository.Keys.tickerShowQuoteName) != "0"
+        if let json = repo.string(SettingsRepository.Keys.tickerSingleQuoteSymbol),
+           let data = json.data(using: .utf8),
+           let symbol = try? JSONDecoder().decode(SymbolID.self, from: data) {
+            self.singleQuoteSymbol = symbol
+        } else {
+            self.singleQuoteSymbol = nil
+        }
         let rawLegacyWidth = Int(repo.string(SettingsRepository.Keys.tickerMenuBarWidth) ?? "") ?? 280
         let legacyWidth = Self.clampMenuBarWidth(rawLegacyWidth)
         self.menuBarWidth = legacyWidth
@@ -172,15 +208,19 @@ final class TickerPreferences: ObservableObject {
         let scrollWidth = Self.clampScrollMenuBarWidth(Int(repo.string(SettingsRepository.Keys.tickerScrollMenuBarWidth) ?? "") ?? max(160, legacyWidth))
         let carouselWidth = Self.clampCarouselMenuBarWidth(Int(repo.string(SettingsRepository.Keys.tickerCarouselMenuBarWidth) ?? "") ?? min(360, max(160, legacyWidth)))
         let compactWidth = Self.clampCompactMenuBarWidth(Int(repo.string(SettingsRepository.Keys.tickerCompactMenuBarWidth) ?? "") ?? 160)
+        let singleQuoteWidth = Self.clampSingleQuoteMenuBarWidth(Int(repo.string(SettingsRepository.Keys.tickerSingleQuoteMenuBarWidth) ?? "") ?? 160)
         self.scrollMenuBarWidth = scrollWidth
         self.carouselMenuBarWidth = carouselWidth
         self.compactMenuBarWidth = compactWidth
+        self.singleQuoteMenuBarWidth = singleQuoteWidth
         try? repo.set(SettingsRepository.Keys.tickerScrollMenuBarWidth, "\(scrollWidth)")
         try? repo.set(SettingsRepository.Keys.tickerCarouselMenuBarWidth, "\(carouselWidth)")
         try? repo.set(SettingsRepository.Keys.tickerCompactMenuBarWidth, "\(compactWidth)")
+        try? repo.set(SettingsRepository.Keys.tickerSingleQuoteMenuBarWidth, "\(singleQuoteWidth)")
         self.scrollAutoWidth = repo.string(SettingsRepository.Keys.tickerScrollAutoWidth) == "1"
         self.carouselAutoWidth = repo.string(SettingsRepository.Keys.tickerCarouselAutoWidth) == "1"
         self.compactAutoWidth = repo.string(SettingsRepository.Keys.tickerCompactAutoWidth) != "0"
+        self.singleQuoteAutoWidth = repo.string(SettingsRepository.Keys.tickerSingleQuoteAutoWidth) != "0"
         self.showDirectionArrow = repo.string(SettingsRepository.Keys.tickerShowDirectionArrow) == "1"
         migrateMinimalModeIfNeeded()
     }
@@ -211,9 +251,10 @@ enum TickerDisplayMode: String, CaseIterable, Identifiable, Codable {
     case scrollNoCode // 旧版本兼容:现在用 showQuoteCode 控制
     case carousel  // 一条一条上下淡入轮播
     case compact   // 三个简写卡片(今日 / 总盈亏 / 总市值)
+    case singleQuote // 固定显示一只股票的名称 / 价格 / 涨跌幅
     case minimal   // 只显示一个用户选定的数字
 
-    static let allCases: [TickerDisplayMode] = [.scroll, .carousel, .compact, .minimal]
+    static let allCases: [TickerDisplayMode] = [.scroll, .carousel, .compact, .singleQuote, .minimal]
 
     var id: String { rawValue }
     var displayName: String {
@@ -222,6 +263,7 @@ enum TickerDisplayMode: String, CaseIterable, Identifiable, Codable {
         case .scrollNoCode: return L("displayMode.scroll", comment: "")
         case .carousel: return L("displayMode.carousel", comment: "")
         case .compact:  return L("displayMode.compact", comment: "")
+        case .singleQuote: return L("displayMode.singleQuote", comment: "")
         case .minimal:  return L("displayMode.minimal", comment: "")
         }
     }

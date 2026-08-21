@@ -13,6 +13,8 @@ final class CarouselTickerView: NSView {
     /// 每条停留秒数,通过 controller 注入(配置里调)
     var dwell: CFTimeInterval = 4
     private var lastSwitch: CFTimeInterval = 0
+    /// 是否因用户设置的“全部市场休市时暂停菜单栏动画”而暂停。
+    private var paused: Bool = false
     private var displayLink: CVDisplayLink?
     /// 由 controller 同步过来的 hover 状态
     var hovered: Bool = false
@@ -105,11 +107,26 @@ final class CarouselTickerView: NSView {
         stopAnimation()
     }
 
+    /// 暂停时冻结当前条目，并在恢复后重新开始停留计时，避免休市期间累积的时间
+    /// 让轮播一恢复就立即跳到下一条。
+    func setPaused(_ value: Bool) {
+        guard paused != value else { return }
+        paused = value
+        lastSwitch = 0
+        if value {
+            // 如果暂停发生在切换动画中，保留当前条目的完整显示状态。
+            transition = 1
+            transitionStart = 0
+            needsDisplay = true
+            onContentChanged?()
+        }
+    }
+
     private func step(now: CFTimeInterval) {
         if items.count <= 1 {
             return
         }
-        if pauseOnHover && hovered { return }
+        if paused || (pauseOnHover && hovered) { return }
         if lastSwitch == 0 { lastSwitch = now }
 
         if transition < 1 {

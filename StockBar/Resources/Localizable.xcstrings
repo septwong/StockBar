@@ -1681,6 +1681,40 @@
         }
       }
     },
+    "displayMode.singleQuote" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fixed (single stock)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "固定(单股)"
+          }
+        }
+      }
+    },
+    "displayMode.singleQuote.hint" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keeps one selected stock visible with its name, price and daily change. No animation."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "固定显示一只股票的名称、当前价和涨跌幅,不滚动不轮播。"
+          }
+        }
+      }
+    },
     "displayMode.scroll.hint" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3988,13 +4022,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pause when all markets closed"
+            "value" : "Pause ticker animation when all markets closed"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "全部市场休市时暂停"
+            "value" : "全部市场休市时暂停菜单栏动画"
           }
         }
       }
@@ -4869,19 +4903,87 @@
         }
       }
     },
+    "ticker.singleQuote" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stock to display"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示股票"
+          }
+        }
+      }
+    },
+    "ticker.singleQuote.empty" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a holding or watchlist item first."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先添加持仓或自选股票。"
+          }
+        }
+      }
+    },
+    "ticker.singleQuote.hint" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose one holding or watchlist item. The price and daily change update with quotes."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从持仓或自选中选择一只,价格和涨跌幅会随行情更新。"
+          }
+        }
+      }
+    },
+    "ticker.singleQuote.unavailable" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selected stock is unavailable"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所选股票已不可用"
+          }
+        }
+      }
+    },
     "ticker.summaryHint" : {
       "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Applies to all display modes (scroll / carousel / fixed). Fixed mode shows only these, no individual quotes."
+            "value" : "Applies to scroll / carousel / fixed compact modes. Single-stock mode shows only the selected quote."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "对全部展现形式生效(滚动 / 轮播 / 固定)。固定模式只显示这几项,不展示个股。"
+            "value" : "对滚动 / 轮播 / 固定(简写)生效。固定(单股)模式只显示所选股票行情。"
           }
         }
       }

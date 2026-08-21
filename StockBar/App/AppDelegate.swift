@@ -63,7 +63,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 popoverController: popover,
                 prefs: container.tickerPrefs,
                 clock: container.clock,
-                settingsRepo: container.settingsRepo
+                settingsRepo: container.settingsRepo,
+                holdingsRepo: container.holdingsRepo,
+                watchlistRepo: container.watchlistRepo
             )
             self.statusController = status
 

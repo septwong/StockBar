@@ -56,7 +56,17 @@ private struct TickerPaneContent: View {
                         }
                     }
                 }
-                Toggle(L("settings.pauseWhenClosed", comment: ""), isOn: $prefs.pauseWhenClosed)
+                if prefs.displayMode == .singleQuote {
+                    Toggle(L("ticker.autoMenuBarWidth", comment: ""), isOn: $prefs.singleQuoteAutoWidth)
+                    if !prefs.singleQuoteAutoWidth {
+                        Stepper(value: $prefs.singleQuoteMenuBarWidth, in: 100...360, step: 20) {
+                            Text(String(format: L("ticker.menuBarWidth", comment: ""), prefs.singleQuoteMenuBarWidth))
+                        }
+                    }
+                }
+                if prefs.displayMode != .singleQuote {
+                    Toggle(L("settings.pauseWhenClosed", comment: ""), isOn: $prefs.pauseWhenClosed)
+                }
                 if prefs.displayMode == .scroll || prefs.displayMode == .carousel {
                     Stepper(value: $prefs.maxItems, in: 1...50) {
                         Text(String(format: L("settings.maxItems", comment: ""), prefs.maxItems))
@@ -90,78 +100,101 @@ private struct TickerPaneContent: View {
 
             Section(header: Text(L("ticker.contentSection", comment: "")).font(.headline)) {
                 Toggle(L("ticker.showAppIcon", comment: ""), isOn: $prefs.showAppIcon)
+                if prefs.displayMode == .singleQuote {
+                    if singleQuoteOptions.isEmpty {
+                        Text(L("ticker.singleQuote.empty", comment: ""))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Picker(L("ticker.singleQuote", comment: ""), selection: $prefs.singleQuoteSymbol) {
+                            if let selected = prefs.singleQuoteSymbol,
+                               !singleQuoteOptions.contains(where: { $0.symbol == selected }) {
+                                Text(L("ticker.singleQuote.unavailable", comment: ""))
+                                    .tag(selected as SymbolID?)
+                            }
+                            ForEach(singleQuoteOptions) { option in
+                                Text(singleQuoteOptionLabel(option)).tag(option.symbol as SymbolID?)
+                            }
+                        }
+                        Text(L("ticker.singleQuote.hint", comment: ""))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
                 if showsQuoteContentControls {
                     Toggle(L("ticker.showQuoteCode", comment: ""), isOn: $prefs.showQuoteCode)
                     Toggle(L("ticker.showQuoteName", comment: ""), isOn: $prefs.showQuoteName)
                 }
             }
 
-            Section(header: Text(L("ticker.summarySection", comment: "")).font(.headline)) {
-                Toggle(L("ticker.showTodayPnL", comment: ""), isOn: $prefs.showTodayPnL)
-                Toggle(L("ticker.showAllTimePnL", comment: ""), isOn: $prefs.showAllTimePnL)
-                Toggle(L("ticker.showTotalAssets", comment: ""), isOn: $prefs.showTotalAssets)
-                if prefs.displayMode == .compact || prefs.displayMode == .minimal {
-                    Toggle(L("ticker.showDirectionArrow", comment: ""), isOn: $prefs.showDirectionArrow)
-                }
-                Text(L("ticker.summaryHint", comment: ""))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-
-            Section(header: Text(L("ticker.indicesSection", comment: "")).font(.headline)) {
-                ForEach(IndexCatalog.all) { desc in
-                    Toggle(isOn: Binding(
-                        get: { prefs.tickerIndexIDs.contains(desc.id) },
-                        set: { newValue in
-                            var s = prefs.tickerIndexIDs
-                            if newValue { s.insert(desc.id) } else { s.remove(desc.id) }
-                            prefs.tickerIndexIDs = s
-                        }
-                    )) {
-                        HStack {
-                            Text(desc.displayName)
-                            marketBadge(desc.market)
-                        }
+            if prefs.displayMode != .singleQuote {
+                Section(header: Text(L("ticker.summarySection", comment: "")).font(.headline)) {
+                    Toggle(L("ticker.showTodayPnL", comment: ""), isOn: $prefs.showTodayPnL)
+                    Toggle(L("ticker.showAllTimePnL", comment: ""), isOn: $prefs.showAllTimePnL)
+                    Toggle(L("ticker.showTotalAssets", comment: ""), isOn: $prefs.showTotalAssets)
+                    if prefs.displayMode == .compact || prefs.displayMode == .minimal {
+                        Toggle(L("ticker.showDirectionArrow", comment: ""), isOn: $prefs.showDirectionArrow)
                     }
-                }
-                Text(L("ticker.indicesHint", comment: ""))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-
-            Section(header: Text(L("ticker.holdingsSection", comment: "")).font(.headline)) {
-                if holdings.isEmpty {
-                    Text(L("holdings.empty", comment: ""))
+                    Text(L("ticker.summaryHint", comment: ""))
                         .font(.caption)
                         .foregroundColor(.secondary)
-                } else {
-                    ForEach(holdings) { h in
-                        Toggle(isOn: bindingFor(holding: h)) {
+                }
+
+                Section(header: Text(L("ticker.indicesSection", comment: "")).font(.headline)) {
+                    ForEach(IndexCatalog.all) { desc in
+                        Toggle(isOn: Binding(
+                            get: { prefs.tickerIndexIDs.contains(desc.id) },
+                            set: { newValue in
+                                var s = prefs.tickerIndexIDs
+                                if newValue { s.insert(desc.id) } else { s.remove(desc.id) }
+                                prefs.tickerIndexIDs = s
+                            }
+                        )) {
                             HStack {
-                                Text(h.symbol.market == .us ? h.symbol.code.uppercased() : h.symbol.code)
-                                    .monospacedDigit()
-                                Text(h.name)
-                                    .foregroundColor(.secondary)
-                                marketBadge(h.symbol.market)
+                                Text(desc.displayName)
+                                marketBadge(desc.market)
+                            }
+                        }
+                    }
+                    Text(L("ticker.indicesHint", comment: ""))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Section(header: Text(L("ticker.holdingsSection", comment: "")).font(.headline)) {
+                    if holdings.isEmpty {
+                        Text(L("holdings.empty", comment: ""))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        ForEach(holdings) { h in
+                            Toggle(isOn: bindingFor(holding: h)) {
+                                HStack {
+                                    Text(h.symbol.market == .us ? h.symbol.code.uppercased() : h.symbol.code)
+                                        .monospacedDigit()
+                                    Text(h.name)
+                                        .foregroundColor(.secondary)
+                                    marketBadge(h.symbol.market)
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            Section(header: Text(L("ticker.watchlistSection", comment: "")).font(.headline)) {
-                if watchlist.isEmpty {
-                    Text(L("watchlist.empty", comment: ""))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                } else {
-                    ForEach(watchlist) { w in
-                        Toggle(isOn: bindingFor(watch: w)) {
-                            HStack {
-                                Text(w.symbol.market == .us ? w.symbol.code.uppercased() : w.symbol.code)
-                                Text(w.name)
-                                    .foregroundColor(.secondary)
-                                marketBadge(w.symbol.market)
+                Section(header: Text(L("ticker.watchlistSection", comment: "")).font(.headline)) {
+                    if watchlist.isEmpty {
+                        Text(L("watchlist.empty", comment: ""))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        ForEach(watchlist) { w in
+                            Toggle(isOn: bindingFor(watch: w)) {
+                                HStack {
+                                    Text(w.symbol.market == .us ? w.symbol.code.uppercased() : w.symbol.code)
+                                    Text(w.name)
+                                        .foregroundColor(.secondary)
+                                    marketBadge(w.symbol.market)
+                                }
                             }
                         }
                     }
@@ -171,6 +204,9 @@ private struct TickerPaneContent: View {
         .formStyle(.grouped)
         .padding(20)
         .onAppear(perform: reload)
+        .onChange(of: prefs.displayMode) { _ in
+            ensureSingleQuoteSelection()
+        }
     }
 
     private var displayModeHint: String {
@@ -179,12 +215,24 @@ private struct TickerPaneContent: View {
         case .scrollNoCode: return L("displayMode.scroll.hint", comment: "")
         case .carousel: return L("displayMode.carousel.hint", comment: "")
         case .compact:  return L("displayMode.compact.hint", comment: "")
+        case .singleQuote: return L("displayMode.singleQuote.hint", comment: "")
         case .minimal:  return L("displayMode.minimal.hint", comment: "")
         }
     }
 
     private var showsQuoteContentControls: Bool {
         prefs.displayMode == .scroll || prefs.displayMode == .scrollNoCode || prefs.displayMode == .carousel
+    }
+
+    private var singleQuoteOptions: [SingleQuoteCandidate] {
+        SingleQuoteSelection.candidates(holdings: holdings, watchlist: watchlist)
+    }
+
+    private func singleQuoteOptionLabel(_ option: SingleQuoteCandidate) -> String {
+        let code = option.symbol.market == .us
+            ? option.symbol.code.uppercased()
+            : option.symbol.code
+        return "\(option.name) (\(code))"
     }
 
     private func marketBadge(_ m: Market) -> some View {
@@ -200,6 +248,20 @@ private struct TickerPaneContent: View {
     private func reload() {
         holdings = (try? container.holdingsRepo.all()) ?? []
         watchlist = (try? container.watchlistRepo.all()) ?? []
+        ensureSingleQuoteSelection()
+    }
+
+    private func ensureSingleQuoteSelection() {
+        guard prefs.displayMode == .singleQuote else { return }
+        let options = singleQuoteOptions
+        guard !options.isEmpty else { return }
+
+        if prefs.singleQuoteSymbol != nil {
+            // 选中的股票被删除后保留无效 SymbolID,菜单栏显示空状态,不悄悄切换到另一只。
+            return
+        }
+
+        prefs.singleQuoteSymbol = SingleQuoteSelection.defaultSymbol(in: options)
     }
 
     private func bindingFor(holding: Holding) -> Binding<Bool> {

@@ -74,7 +74,7 @@ struct TickerRenderer {
 
         let s = NSMutableAttributedString()
         s.append(NSAttributedString(string: q.descriptor.displayName + " ", attributes: nameAttr))
-        s.append(NSAttributedString(string: formatPrice(q.price) + " ", attributes: valueAttr))
+        s.append(NSAttributedString(string: TickerDisplayFormatting.price(q.price) + " ", attributes: valueAttr))
         s.append(NSAttributedString(string: pctText, attributes: pctAttr))
         return s
     }
@@ -131,7 +131,7 @@ struct TickerRenderer {
         let pctText = String(format: "%@%.2f%%", pctSign, q.changePct * 100)
 
         let display = displayCode(for: q.symbol)
-        let name = shortenedName(q.name, market: q.symbol.market)
+        let name = TickerDisplayFormatting.shortenedName(q.name, market: q.symbol.market)
 
         let s = NSMutableAttributedString()
         if showsQuoteCode {
@@ -140,19 +140,9 @@ struct TickerRenderer {
         if showsQuoteName && !name.isEmpty {
             s.append(NSAttributedString(string: name + " ", attributes: nameAttr))
         }
-        s.append(NSAttributedString(string: formatPrice(q.price) + " ", attributes: valueAttr))
+        s.append(NSAttributedString(string: TickerDisplayFormatting.price(q.price) + " ", attributes: valueAttr))
         s.append(NSAttributedString(string: pctText, attributes: pctAttr))
         return s
-    }
-
-    /// 截断超长名称,英文名 12 字符内,中文名 6 字内,避免单只票占太长。
-    private func shortenedName(_ name: String, market: Market) -> String {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { return "" }
-        let isChinese = trimmed.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) }
-        let limit = isChinese ? 6 : 12
-        if trimmed.count <= limit { return trimmed }
-        return String(trimmed.prefix(limit)) + "…"
     }
 
     private func displayCode(for symbol: SymbolID) -> String {
@@ -163,10 +153,4 @@ struct TickerRenderer {
         }
     }
 
-    private func formatPrice(_ price: Decimal) -> String {
-        let fmt = NumberFormatter()
-        fmt.minimumFractionDigits = 2
-        fmt.maximumFractionDigits = 2
-        return fmt.string(from: NSDecimalNumber(decimal: price)) ?? "\(price)"
-    }
 }
