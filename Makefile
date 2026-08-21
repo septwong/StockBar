@@ -10,8 +10,8 @@ APP_NAME := StockBar
 DEV_APP_NAME := StockBar-Dev
 DEV_BUNDLE_ID := vip.eztool.StockBar.debug
 DEV_APP_PATH := $(DERIVED)/Build/Products/Debug/$(DEV_APP_NAME).app
-VERSION ?= 1.0.1
-BUILD_NUMBER ?= 2
+VERSION ?= 1.0.2
+BUILD_NUMBER ?= 3
 ARCHS ?= arm64 x86_64
 BUILD_DIR := build/Release
 ARCHIVE_PATH := build/$(APP_NAME).xcarchive
@@ -102,6 +102,9 @@ dmg: release-build
 .PHONY: appcast
 appcast: zip
 	@test -x "$(SPARKLE_BIN)/generate_appcast" || (echo "✗ Sparkle tools missing; run make resolve" && exit 1)
+	# Generate a self-contained feed for this release. Reusing stale local ZIPs
+	# would create historical enclosures that are not uploaded by `publish`.
+	@rm -rf "$(UPDATE_DIR)"
 	mkdir -p "$(UPDATE_DIR)"
 	cp "$(ZIP_PATH)" "$(UPDATE_DIR)/"
 	cp docs/RELEASE_NOTES.md "$(UPDATE_DIR)/$(APP_NAME)-$(VERSION).md"
