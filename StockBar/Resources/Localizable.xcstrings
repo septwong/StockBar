@@ -1188,6 +1188,23 @@
         }
       }
     },
+    "col.createdAt" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Created"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "创建时间"
+          }
+        }
+      }
+    },
     "col.inTicker" : {
       "extractionState" : "stale",
       "localizations" : {

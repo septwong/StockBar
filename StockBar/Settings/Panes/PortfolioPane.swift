@@ -1,32 +1,53 @@
 import SwiftUI
 
 private struct PortfolioColumnWidths {
-    let horizontalPadding: CGFloat = 10
-    let spacing: CGFloat = 8
-    let drag: CGFloat = 18
-    let symbol: CGFloat = 62
-    let market: CGFloat = 34
-    let actions: CGFloat = 44
+    let horizontalPadding: CGFloat
+    let spacing: CGFloat
+    let drag: CGFloat
+    let symbol: CGFloat
+    let market: CGFloat
+    let actions: CGFloat
     let name: CGFloat
     let quantity: CGFloat
     let cost: CGFloat
+    let createdAt: CGFloat
     let contentWidth: CGFloat
 
     init(totalWidth: CGFloat, holdings: [Holding], nameHeader: String) {
-        let quantityBase: CGFloat = 48
-        let costBase: CGFloat = 76
+        let compact = totalWidth < 620
+        horizontalPadding = compact ? 8 : 10
+        spacing = compact ? 5 : 8
+        drag = compact ? 16 : 18
+        symbol = compact ? 58 : 62
+        market = compact ? 30 : 34
+        actions = 44
+        createdAt = compact ? 108 : 132
+
+        let quantityBase: CGFloat = compact ? 44 : 48
+        let costBase: CGFloat = compact ? 62 : 76
+        let nameMinimum: CGFloat = compact ? 72 : 88
         let measuredName = ([nameHeader] + holdings.map(\.name))
             .map(Self.measuredNameWidth)
             .max() ?? Self.measuredNameWidth(nameHeader)
-        let nameCap = max(88, min(180, totalWidth * 0.32))
-        name = min(max(88, measuredName), nameCap)
+        let reservedWidth = horizontalPadding * 2
+            + spacing * 7
+            + drag
+            + symbol
+            + market
+            + createdAt
+            + actions
+            + quantityBase
+            + costBase
+        let nameCap = max(nameMinimum, min(180, totalWidth * 0.32, totalWidth - reservedWidth))
+        name = min(max(nameMinimum, measuredName), nameCap)
 
         let fixedWidth = horizontalPadding * 2
-            + spacing * 6
+            + spacing * 7
             + drag
             + symbol
             + name
             + market
+            + createdAt
             + actions
         let flexibleBase = quantityBase + costBase
         let extraWidth = max(0, totalWidth - fixedWidth - flexibleBase)
@@ -149,6 +170,7 @@ struct PortfolioPane: View {
                         Text(L("col.market", comment: "")).frame(width: columns.market, alignment: .leading)
                         Text(L("col.qty", comment: "")).frame(width: columns.quantity, alignment: .center)
                         Text(L("col.cost", comment: "")).frame(width: columns.cost, alignment: .center)
+                        Text(L("col.createdAt", comment: "")).frame(width: columns.createdAt, alignment: .center)
                         Text("").frame(width: columns.actions)
                     }
                     .font(.system(size: 11, weight: .semibold))
@@ -212,6 +234,12 @@ struct PortfolioPane: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .frame(width: columns.cost, alignment: .center)
+            Text(createdAtText(h.createdAt))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(width: columns.createdAt, alignment: .center)
+                .foregroundColor(.secondary)
             HStack(spacing: 4) {
                 Button { editing = h } label: {
                     Image(systemName: "pencil")
@@ -269,6 +297,14 @@ struct PortfolioPane: View {
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 6
         return formatter.string(from: NSDecimalNumber(decimal: value)) ?? NSDecimalNumber(decimal: value).stringValue
+    }
+
+    private func createdAtText(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter.string(from: date)
     }
 
     /// 把 droppedIDs(UUID string)对应的行移到 ontoIndex 位置,持久化新 sortOrder。
