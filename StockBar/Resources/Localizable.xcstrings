@@ -922,13 +922,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The backup contains %d holdings, %d watchlist items, %d alerts and %d settings. All current data will be wiped and replaced."
+            "value" : "The backup contains %d holdings, %d watchlist items, %d indices, %d alerts and %d settings. All current data will be wiped and replaced."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "备份文件包含 %d 条持仓、%d 条自选、%d 条预警、%d 项设置。当前数据将被完全清空并替换。"
+            "value" : "备份文件包含 %d 条持仓、%d 条自选、%d 个大盘、%d 条预警、%d 项设置。当前数据将被完全清空并替换。"
           }
         }
       }
@@ -1007,13 +1007,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Exported %d holdings, %d watchlist items, %d alerts and %d settings."
+            "value" : "Exported %d holdings, %d watchlist items, %d indices, %d alerts and %d settings."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已导出 %d 条持仓、%d 条自选、%d 条预警、%d 项设置。"
+            "value" : "已导出 %d 条持仓、%d 条自选、%d 个大盘、%d 条预警、%d 项设置。"
           }
         }
       }
@@ -1075,13 +1075,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Restored %d holdings, %d watchlist items, %d alerts, %d settings."
+            "value" : "Restored %d holdings, %d watchlist items, %d indices, %d alerts, %d settings."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已恢复 %d 条持仓、%d 条自选、%d 条预警、%d 项设置。"
+            "value" : "已恢复 %d 条持仓、%d 条自选、%d 个大盘、%d 条预警、%d 项设置。"
           }
         }
       }
@@ -2500,19 +2500,257 @@
         }
       }
     },
-    "indices.plannedP2" : {
+    "indices.addTitle" : {
       "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Indices arrive in Phase 2"
+            "value" : "Add Index"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "大盘指数将在 Phase 2 上线"
+            "value" : "添加大盘指数"
+          }
+        }
+      }
+    },
+    "indices.currency" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Currency"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "货币"
+          }
+        }
+      }
+    },
+    "indices.editTitle" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Index"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑大盘指数"
+          }
+        }
+      }
+    },
+    "indices.eastMoneySecid" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EastMoney secid"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "东方财富 secid"
+          }
+        }
+      }
+    },
+    "indices.error.duplicateEastMoneySecid" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This EastMoney secid is already in use."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个东方财富 secid 已经被使用。"
+          }
+        }
+      }
+    },
+    "indices.error.duplicateTencentCode" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Tencent code is already in use."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个腾讯代码已经被使用。"
+          }
+        }
+      }
+    },
+    "indices.error.eastMoneySecidRequired" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter an EastMoney secid."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入东方财富 secid。"
+          }
+        }
+      }
+    },
+    "indices.error.nameRequired" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter an index name."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入指数名称。"
+          }
+        }
+      }
+    },
+    "indices.error.tencentCodeRequired" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a Tencent code."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入腾讯代码。"
+          }
+        }
+      }
+    },
+    "indices.nameEn" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "English Name"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "英文名称"
+          }
+        }
+      }
+    },
+    "indices.nameZh" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chinese Name"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中文名称"
+          }
+        }
+      }
+    },
+    "indices.providerCodeHint" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use the provider codes returned by Tencent and EastMoney. Example: sh000001 and 1.000001."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请填写腾讯和东方财富返回的代码，例如 sh000001 和 1.000001。"
+          }
+        }
+      }
+    },
+    "indices.restoreDefaults" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore Built-ins"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复内置"
+          }
+        }
+      }
+    },
+    "indices.settings.empty" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No indices configured."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有配置大盘指数。"
+          }
+        }
+      }
+    },
+    "indices.tencentCode" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tencent code"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "腾讯代码"
           }
         }
       }
@@ -3825,6 +4063,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "汇率"
+          }
+        }
+      }
+    },
+    "settings.indices" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indices"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大盘"
           }
         }
       }

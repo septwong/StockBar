@@ -2,23 +2,62 @@ import Foundation
 import AppKit
 import UniformTypeIdentifiers
 
-/// 备份文件载荷:包含所有持仓 / 自选 / 预警 / 设置。
+/// 备份文件载荷:包含所有持仓 / 自选 / 大盘 / 预警 / 设置。
 struct BackupBundle: Codable {
     let schemaVersion: Int
     let exportedAt: Date
     let appVersion: String
     let holdings: [Holding]
     let watchlist: [WatchItem]
+    let indices: [IndexDescriptor]
     let alerts: [Alert]
     /// 可移植的非敏感设置。API Key 等凭据永不导出。
     let settings: [String: String]
 
-    static let currentSchemaVersion: Int = 1
+    static let currentSchemaVersion: Int = 2
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, exportedAt, appVersion, holdings, watchlist, indices, alerts, settings
+    }
+
+    init(
+        schemaVersion: Int,
+        exportedAt: Date,
+        appVersion: String,
+        holdings: [Holding],
+        watchlist: [WatchItem],
+        indices: [IndexDescriptor],
+        alerts: [Alert],
+        settings: [String: String]
+    ) {
+        self.schemaVersion = schemaVersion
+        self.exportedAt = exportedAt
+        self.appVersion = appVersion
+        self.holdings = holdings
+        self.watchlist = watchlist
+        self.indices = indices
+        self.alerts = alerts
+        self.settings = settings
+    }
+
+    /// v1 备份没有 indices 字段,按首次安装时的内置列表兼容读取。
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try values.decode(Int.self, forKey: .schemaVersion)
+        exportedAt = try values.decode(Date.self, forKey: .exportedAt)
+        appVersion = try values.decode(String.self, forKey: .appVersion)
+        holdings = try values.decode([Holding].self, forKey: .holdings)
+        watchlist = try values.decode([WatchItem].self, forKey: .watchlist)
+        indices = try values.decodeIfPresent([IndexDescriptor].self, forKey: .indices) ?? IndexCatalog.defaults
+        alerts = try values.decode([Alert].self, forKey: .alerts)
+        settings = try values.decode([String: String].self, forKey: .settings)
+    }
 }
 
 struct ImportSummary {
     let holdingsCount: Int
     let watchlistCount: Int
+    let indicesCount: Int
     let alertsCount: Int
     let settingsCount: Int
 }
@@ -36,6 +75,7 @@ final class BackupService {
     func makeBundle() throws -> BackupBundle {
         let holdings = try container.holdingsRepo.all()
         let watchlist = try container.watchlistRepo.all()
+        let indices = try container.indexRepo.all()
         let alerts = try container.alertsRepo.all()
         let settings = Self.sanitizedSettings(try container.settingsRepo.allEntries())
         let version = AppVersion.short
@@ -45,6 +85,7 @@ final class BackupService {
             appVersion: version,
             holdings: holdings,
             watchlist: watchlist,
+            indices: indices,
             alerts: alerts,
             settings: settings
         )
@@ -84,12 +125,14 @@ final class BackupService {
         try container.database.dbPool.write { db in
             try container.holdingsRepo.replaceAll(bundle.holdings, in: db)
             try container.watchlistRepo.replaceAll(bundle.watchlist, in: db)
+            try container.indexRepo.replaceAll(bundle.indices, in: db)
             try container.alertsRepo.replaceAll(bundle.alerts, in: db)
             try container.settingsRepo.replaceAll(settings, in: db)
         }
         return ImportSummary(
             holdingsCount: bundle.holdings.count,
             watchlistCount: bundle.watchlist.count,
+            indicesCount: bundle.indices.count,
             alertsCount: bundle.alerts.count,
             settingsCount: settings.count
         )
@@ -133,6 +176,7 @@ final class BackupService {
             format: L("backup.exported.body", comment: ""),
             bundle.holdings.count,
             bundle.watchlist.count,
+            bundle.indices.count,
             bundle.alerts.count,
             bundle.settings.count
         ) + "\n\n" + fileURL.path
@@ -161,7 +205,8 @@ final class BackupService {
             confirm.messageText = L("backup.confirmReplace.title", comment: "")
             confirm.informativeText = String(
                 format: L("backup.confirmReplace.body", comment: ""),
-                bundle.holdings.count, bundle.watchlist.count, bundle.alerts.count, bundle.settings.count
+                bundle.holdings.count, bundle.watchlist.count, bundle.indices.count,
+                bundle.alerts.count, bundle.settings.count
             )
             confirm.alertStyle = .warning
             confirm.addButton(withTitle: L("backup.confirmReplace.yes", comment: ""))

@@ -12,15 +12,7 @@ struct IndicesTab: View {
                     emptyState
                 } else {
                     ForEach(refresher.indexQuotes) { q in
-                        IndexRow(quote: q, scheme: prefs.colorScheme)
-                            .contextMenu {
-                                Button(L("action.openInBrowser", comment: "")) {
-                                    openInBrowser(q.descriptor)
-                                }
-                            }
-                            .onTapGesture(count: 2) {
-                                openInBrowser(q.descriptor)
-                            }
+                        indexRow(q)
                         Divider().opacity(0.4)
                     }
                 }
@@ -33,6 +25,25 @@ struct IndicesTab: View {
         let template = vm.settingsRepo.string(BrowserURLBuilder.templateKey) ?? BrowserURLBuilder.Template.xueqiu.rawValue
         if let url = BrowserURLBuilder.url(template: template, index: index) {
             NSWorkspace.shared.open(url)
+        }
+    }
+
+    @ViewBuilder
+    private func indexRow(_ quote: IndexQuote) -> some View {
+        let row = IndexRow(quote: quote, scheme: prefs.colorScheme)
+        let template = vm.settingsRepo.string(BrowserURLBuilder.templateKey) ?? BrowserURLBuilder.Template.xueqiu.rawValue
+        if BrowserURLBuilder.url(template: template, index: quote.descriptor) != nil {
+            row
+                .contextMenu {
+                    Button(L("action.openInBrowser", comment: "")) {
+                        openInBrowser(quote.descriptor)
+                    }
+                }
+                .onTapGesture(count: 2) {
+                    openInBrowser(quote.descriptor)
+                }
+        } else {
+            row
         }
     }
 

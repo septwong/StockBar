@@ -18,6 +18,7 @@ private struct TickerPaneContent: View {
 
     @State private var holdings: [Holding] = []
     @State private var watchlist: [WatchItem] = []
+    @State private var indices: [IndexDescriptor] = []
 
     var body: some View {
         Form {
@@ -141,7 +142,7 @@ private struct TickerPaneContent: View {
                 }
 
                 Section(header: Text(L("ticker.indicesSection", comment: "")).font(.headline)) {
-                    ForEach(IndexCatalog.all) { desc in
+                    ForEach(indices) { desc in
                         Toggle(isOn: Binding(
                             get: { prefs.tickerIndexIDs.contains(desc.id) },
                             set: { newValue in
@@ -248,6 +249,7 @@ private struct TickerPaneContent: View {
     private func reload() {
         holdings = (try? container.holdingsRepo.all()) ?? []
         watchlist = (try? container.watchlistRepo.all()) ?? []
+        indices = (try? container.indexRepo.all()) ?? []
         ensureSingleQuoteSelection()
     }
 

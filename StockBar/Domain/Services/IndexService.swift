@@ -13,7 +13,7 @@ actor IndexService {
         self.providers = providers
     }
 
-    func fetchAll(_ indices: [IndexDescriptor] = IndexCatalog.all) async throws -> [IndexQuote] {
+    func fetchAll(_ indices: [IndexDescriptor] = IndexCatalog.defaults) async throws -> [IndexQuote] {
         guard !indices.isEmpty else { return [] }
         var remaining = indices
         var result: [String: IndexQuote] = [:]

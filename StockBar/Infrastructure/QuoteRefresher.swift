@@ -44,6 +44,7 @@ final class QuoteRefresher: ObservableObject {
     private let quoteCacheRepo: QuoteCacheRepository?
     private let fxCacheRepo: FXCacheRepository?
     private let holdingsRepo: HoldingsRepository?
+    private let indexRepo: IndexRepository?
     private let settingsRepo: SettingsRepository?
     private let alertEngine: AlertEngine?
     private var task: Task<Void, Never>?
@@ -52,6 +53,8 @@ final class QuoteRefresher: ObservableObject {
     private var popoverOpen = false
     private var sleeping = false
     private var offline = false
+    private var isRefreshingIndices = false
+    private var indexRefreshQueued = false
     private var observers: [NSObjectProtocol] = []
 
     init(
@@ -61,6 +64,7 @@ final class QuoteRefresher: ObservableObject {
         quoteCacheRepo: QuoteCacheRepository? = nil,
         fxCacheRepo: FXCacheRepository? = nil,
         holdingsRepo: HoldingsRepository? = nil,
+        indexRepo: IndexRepository? = nil,
         settingsRepo: SettingsRepository? = nil,
         alertEngine: AlertEngine? = nil
     ) {
@@ -70,6 +74,7 @@ final class QuoteRefresher: ObservableObject {
         self.quoteCacheRepo = quoteCacheRepo
         self.fxCacheRepo = fxCacheRepo
         self.holdingsRepo = holdingsRepo
+        self.indexRepo = indexRepo
         self.settingsRepo = settingsRepo
         self.alertEngine = alertEngine
 
@@ -121,6 +126,7 @@ final class QuoteRefresher: ObservableObject {
     deinit {
         for o in observers { NotificationCenter.default.removeObserver(o) }
         task?.cancel()
+        indexTask?.cancel()
     }
 
     func start() {
@@ -143,6 +149,17 @@ final class QuoteRefresher: ObservableObject {
     /// 触发立即刷新一次(不影响调度)。
     func refreshNow() {
         Task { await tick() }
+    }
+
+    /// 指数配置发生变化后立即按最新列表刷新一次。
+    func refreshIndicesNow() {
+        indexRefreshQueued = true
+        if let indexRepo, let current = try? indexRepo.all() {
+            let quotesByID = Dictionary(uniqueKeysWithValues: indexQuotes.map { ($0.id, $0) })
+            // 配置删除或排序后先同步现有行情，避免旧指数继续显示到网络请求结束。
+            indexQuotes = current.compactMap { quotesByID[$0.id] }
+        }
+        Task { await tickIndices() }
     }
 
     func setPopoverOpen(_ open: Bool) {
@@ -216,8 +233,32 @@ final class QuoteRefresher: ObservableObject {
     }
 
     private func tickIndices() async {
+        guard !isRefreshingIndices else { return }
+        isRefreshingIndices = true
+        indexRefreshQueued = false
+        defer {
+            isRefreshingIndices = false
+            if indexRefreshQueued {
+                Task { [weak self] in await self?.tickIndices() }
+            }
+        }
+
         do {
-            let result = try await indexService.fetchAll()
+            let indices: [IndexDescriptor]
+            if let indexRepo {
+                indices = try indexRepo.all()
+            } else {
+                indices = IndexCatalog.defaults
+            }
+
+            guard !indices.isEmpty else {
+                indexQuotes = []
+                return
+            }
+
+            let result = try await indexService.fetchAll(indices)
+            // 配置在请求期间发生变化时，丢弃旧请求结果，由 defer 触发下一次刷新。
+            guard !indexRefreshQueued else { return }
             await MainActor.run {
                 self.indexQuotes = result
             }

@@ -215,7 +215,8 @@ private func showImportDoneAlert(_ summary: ImportSummary) {
     alert.messageText = L("backup.imported.title", comment: "")
     alert.informativeText = String(
         format: L("backup.imported.body", comment: ""),
-        summary.holdingsCount, summary.watchlistCount, summary.alertsCount, summary.settingsCount
+        summary.holdingsCount, summary.watchlistCount, summary.indicesCount,
+        summary.alertsCount, summary.settingsCount
     )
     alert.alertStyle = .informational
     alert.addButton(withTitle: L("action.ok", comment: ""))

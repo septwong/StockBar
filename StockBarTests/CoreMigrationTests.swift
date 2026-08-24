@@ -34,6 +34,7 @@ final class CoreMigrationTests: XCTestCase {
         XCTAssertTrue(tables.contains("appSetting"))
         XCTAssertTrue(tables.contains("alert"))
         XCTAssertTrue(tables.contains("quoteCache"))
+        XCTAssertTrue(tables.contains("indexItem"))
     }
 
     func testRepositoriesRoundTripAndReorder() throws {
@@ -49,6 +50,49 @@ final class CoreMigrationTests: XCTestCase {
         try repository.reorder(ids: [second.id, first.id])
 
         XCTAssertEqual(try repository.all().map(\.id), [second.id, first.id])
+    }
+
+    func testIndexRepositoryRoundTripReorderDeleteAndRestoreDefaults() throws {
+        let repository = IndexRepository(dbPool: database.dbPool)
+        let defaults = try repository.all()
+        XCTAssertEqual(defaults.map(\.id), IndexCatalog.defaults.map(\.id))
+
+        let custom = IndexDescriptor(
+            id: "custom-index",
+            nameZh: "测试指数",
+            nameEn: "Test Index",
+            market: .us,
+            emSecid: "105.TEST",
+            tencentCode: "usTEST",
+            currency: .usd
+        )
+        try repository.upsert(custom)
+        XCTAssertEqual(try repository.all().count, defaults.count + 1)
+
+        var edited = custom
+        edited.nameZh = "编辑后的指数"
+        try repository.upsert(edited)
+        XCTAssertEqual(try repository.all().first(where: { $0.id == custom.id })?.nameZh, "编辑后的指数")
+
+        let reorderedIDs = [custom.id] + (try repository.all().map(\.id).filter { $0 != custom.id })
+        try repository.reorder(ids: reorderedIDs)
+        XCTAssertEqual(try repository.all().first?.id, custom.id)
+
+        try repository.delete(id: custom.id)
+        XCTAssertNil(try repository.all().first(where: { $0.id == custom.id }))
+        XCTAssertEqual(try repository.restoreDefaults().map(\.id), Array(reorderedIDs.dropFirst()))
+
+        XCTAssertThrowsError(try repository.upsert(IndexDescriptor(
+            id: "duplicate",
+            nameZh: "重复",
+            nameEn: "Duplicate",
+            market: .a,
+            emSecid: IndexCatalog.defaults[0].emSecid,
+            tencentCode: "shduplicate",
+            currency: .cny
+        ))) { error in
+            XCTAssertEqual(error as? IndexRepositoryError, .duplicateEastMoneySecid)
+        }
     }
 
     func testSymbolEncodingAcrossMarkets() {

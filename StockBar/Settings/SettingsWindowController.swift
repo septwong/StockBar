@@ -109,7 +109,7 @@ extension EnvironmentValues {
 
 struct SettingsRootView: View {
     enum Pane: String, CaseIterable, Identifiable {
-        case general, ticker, portfolio, watchlist, alerts, dataSources, fx, markets, about
+        case general, ticker, indices, portfolio, watchlist, alerts, dataSources, fx, markets, about
         #if DEBUG
         case debug
         #endif
@@ -119,6 +119,7 @@ struct SettingsRootView: View {
             switch self {
             case .general:     return L("settings.general", comment: "")
             case .ticker:      return L("settings.ticker", comment: "")
+            case .indices:     return L("settings.indices", comment: "")
             case .portfolio:   return L("settings.portfolio", comment: "")
             case .watchlist:   return L("settings.watchlist", comment: "")
             case .alerts:      return L("settings.alerts", comment: "")
@@ -135,6 +136,7 @@ struct SettingsRootView: View {
             switch self {
             case .general:     return "gear"
             case .ticker:      return "text.line.first.and.arrowtriangle.forward"
+            case .indices:     return "chart.line.uptrend.xyaxis"
             case .portfolio:   return "briefcase"
             case .watchlist:   return "star"
             case .alerts:      return "bell"
@@ -161,6 +163,7 @@ struct SettingsRootView: View {
             switch navigation.selectedPane {
             case .general:     GeneralPane()
             case .ticker:      TickerPane()
+            case .indices:     IndicesPane()
             case .portfolio:   PortfolioPane()
             case .watchlist:   WatchlistPane()
             case .alerts:      AlertsPane()

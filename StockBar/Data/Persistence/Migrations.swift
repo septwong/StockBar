@@ -104,6 +104,23 @@ enum Migrations {
             }
         }
 
+        // 用户可配置的大盘指数。内置项沿用原来的稳定 ID,这样已有
+        // ticker_index_ids 不需要迁移就能继续匹配。
+        migrator.registerMigration("v7_index_items") { db in
+            try db.create(table: "indexItem") { t in
+                t.column("id", .text).primaryKey()
+                t.column("nameZh", .text).notNull().defaults(to: "")
+                t.column("nameEn", .text).notNull().defaults(to: "")
+                t.column("market", .text).notNull()
+                t.column("emSecid", .text).notNull()
+                t.column("tencentCode", .text).notNull()
+                t.column("currency", .text).notNull()
+                t.column("sortOrder", .integer).notNull().defaults(to: 0)
+                t.column("createdAt", .datetime).notNull()
+            }
+            try IndexRepository.seedDefaults(in: db)
+        }
+
         try migrator.migrate(dbPool)
     }
 }

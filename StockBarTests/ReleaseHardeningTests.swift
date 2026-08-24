@@ -37,6 +37,28 @@ final class ReleaseHardeningTests: XCTestCase {
         XCTAssertEqual(restored.first?.name, original.name)
     }
 
+    func testIndexRepositoryReplaceRollsBackAsOneTransaction() throws {
+        let repo = IndexRepository(dbPool: database.dbPool)
+        let original = try repo.all()
+        let duplicateID = "duplicate-index"
+        let first = IndexDescriptor(
+            id: duplicateID,
+            nameZh: "A",
+            nameEn: "A",
+            market: .us,
+            emSecid: "105.DUPA",
+            tencentCode: "usDUPA",
+            currency: .usd
+        )
+        var duplicate = first
+        duplicate.nameZh = "B"
+
+        XCTAssertThrowsError(try database.dbPool.write { db in
+            try repo.replaceAll([first, duplicate], in: db)
+        })
+        XCTAssertEqual(try repo.all().map(\.id), original.map(\.id))
+    }
+
     @MainActor
     func testBackupSettingsExcludeProviderSecrets() {
         let result = BackupService.sanitizedSettings([
@@ -45,6 +67,31 @@ final class ReleaseHardeningTests: XCTestCase {
         ])
         XCTAssertNil(result[DataSourcePreferences.Keys.finnhubKey])
         XCTAssertEqual(result[SettingsRepository.Keys.language], "en")
+    }
+
+    func testLegacyBackupWithoutIndicesUsesBuiltInDefaults() throws {
+        let bundle = BackupBundle(
+            schemaVersion: 1,
+            exportedAt: Date(timeIntervalSince1970: 0),
+            appVersion: "1.0.3",
+            holdings: [],
+            watchlist: [],
+            indices: [],
+            alerts: [],
+            settings: [:]
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encoder.encode(bundle)) as? [String: Any]
+        )
+        object.removeValue(forKey: "indices")
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(BackupBundle.self, from: legacyData)
+        XCTAssertEqual(decoded.indices.map(\.id), IndexCatalog.defaults.map(\.id))
     }
 
     func testAlertDateKeyUsesItsMarketTimeZone() {
@@ -131,6 +178,32 @@ final class ReleaseHardeningTests: XCTestCase {
         XCTAssertEqual(result.first?.prevClose, Decimal(string: "3894.42"))
         XCTAssertEqual(result.first?.change, Decimal(string: "9.30"))
         XCTAssertEqual(result.first?.changePct ?? 0, 0.0024, accuracy: 0.000_001)
+    }
+
+    func testCustomIndexParsersUsePersistedProviderCodes() throws {
+        let descriptor = IndexDescriptor(
+            id: "custom-index",
+            nameZh: "测试指数",
+            nameEn: "Test Index",
+            market: .us,
+            emSecid: "105.TEST",
+            tencentCode: "usTEST",
+            currency: .usd
+        )
+        var fields = Array(repeating: "", count: 33)
+        fields[3] = "123.45"
+        fields[4] = "120.00"
+        fields[31] = "3.45"
+        fields[32] = "2.88"
+        let tencentText = "v_\(descriptor.tencentCode)=\"\(fields.joined(separator: "~"))\";"
+        let tencentResult = TencentIndexProvider().parse(tencentText, indices: [descriptor])
+
+        let eastMoneyData = #"{"data":{"diff":[{"f2":123.45,"f3":2.88,"f4":3.45,"f12":"TEST","f13":105,"f14":"Test Index","f18":120.0}]}}"#.data(using: .utf8)!
+        let eastMoneyResult = try EastMoneyIndexProvider().parse(eastMoneyData, indices: [descriptor])
+
+        XCTAssertEqual(tencentResult.first?.id, descriptor.id)
+        XCTAssertEqual(eastMoneyResult.first?.id, descriptor.id)
+        XCTAssertEqual(eastMoneyResult.first?.price, Decimal(string: "123.45"))
     }
 
     func testIndexFallbackFillsPartialResults() async throws {

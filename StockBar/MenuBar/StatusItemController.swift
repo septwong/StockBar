@@ -597,11 +597,10 @@ final class StatusItemController {
 
         let enabledIDs = prefs.tickerIndexIDs
         if !enabledIDs.isEmpty {
-            let byID = Dictionary(uniqueKeysWithValues: refresher.indexQuotes.map { ($0.descriptor.id, $0) })
-            for desc in IndexCatalog.all where enabledIDs.contains(desc.id) {
-                if let iq = byID[desc.id] {
-                    items.append(.index(iq))
-                }
+            // indexQuotes 已由 QuoteRefresher 按持久化的指数排序返回。
+            // 这里只负责应用“是否显示在滚动条”的独立偏好。
+            for quote in refresher.indexQuotes where enabledIDs.contains(quote.descriptor.id) {
+                items.append(.index(quote))
             }
         }
 
