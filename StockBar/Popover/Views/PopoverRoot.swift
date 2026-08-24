@@ -22,6 +22,10 @@ struct PopoverRoot: View {
             Divider()
             footer
         }
+        // NSHostingView 在 Popover 未聚焦时默认可能是透明的,导致桌面透进来;
+        // 给根视图一个不透明的系统背景,保持明暗主题跟随 AppKit.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(NSColor.windowBackgroundColor))
         .onReceive(statusTimer) { statusTick = $0 }
     }
 
@@ -166,7 +170,10 @@ struct PopoverRoot: View {
         HStack(spacing: 12) {
             Button(action: { refresher.refreshNow() }) {
                 HStack(spacing: 5) {
-                    if refresher.isRefreshing {
+                    // 已有数据后的自动轮询很短,不要在刷新箭头和 spinner 之间切换;
+                    // 否则底部状态栏会每隔几秒闪一下。首次加载仍保留 spinner,
+                    // 让用户知道还没有可显示的实时数据。
+                    if refresher.isRefreshing && !refresher.hasCompletedInitialRefresh {
                         ProgressView()
                             .controlSize(.mini)
                             .frame(width: 12, height: 12)
@@ -180,7 +187,8 @@ struct PopoverRoot: View {
                 .font(.system(size: 11))
             }
             .buttonStyle(.plain)
-            .disabled(refresher.isRefreshing)
+            // QuoteRefresher.tick() 自身会拦截并发刷新。不要把按钮设为 disabled,
+            // 否则每次后台轮询都会触发系统的 disabled 淡化效果,造成底部闪烁。
 
             Spacer()
             Button(action: openGitHub) {
@@ -216,7 +224,7 @@ struct PopoverRoot: View {
         if refresher.snapshotIsFromCache {
             return L("footer.cached", comment: "")
         }
-        if refresher.isRefreshing && refresher.lastUpdated == nil {
+        if refresher.isRefreshing && !refresher.hasCompletedInitialRefresh {
             return L("footer.refreshing", comment: "")
         }
         if let t = refresher.lastUpdated {

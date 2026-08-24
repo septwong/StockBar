@@ -156,7 +156,7 @@ struct HoldingsTab: View {
 
     private func nativeTodayPnL(holding: Holding, quote: Quote?) -> Decimal? {
         guard let quote else { return nil }
-        return (quote.price - quote.prevClose) * holding.quantity
+        return holding.todayPnL(for: quote)
     }
 
     private func nativeMetric(holding: Holding, quote: Quote?, mode: HoldingPopoverMetric) -> Decimal? {
@@ -246,7 +246,7 @@ private struct HoldingRow: View {
 
     private var nativeTodayPnL: Decimal? {
         guard let q = quote else { return nil }
-        return (q.price - q.prevClose) * holding.quantity
+        return holding.todayPnL(for: q)
     }
 
     private var selectedMetricValue: Decimal? {

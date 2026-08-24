@@ -10,7 +10,8 @@ struct HoldingPosition: Identifiable, Equatable, Sendable {
     let pnl: Decimal
     /// P&L percent (e.g. 0.12 = +12%).
     let pnlPct: Double
-    /// Today's P&L (price change today * qty) in native currency.
+    /// Today's P&L in native currency. A holding created today uses its cost
+    /// price as the baseline; older holdings use the quote's previous close.
     let todayPnL: Decimal
     /// Market value converted to base currency (nil if FX unavailable).
     let baseMarketValue: Decimal?

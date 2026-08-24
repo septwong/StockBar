@@ -31,6 +31,9 @@ final class QuoteRefresher: ObservableObject {
     @Published private(set) var lastUpdated: Date?
     /// true 表示一次网络刷新正在进行中,UI 可以显示 spinner。
     @Published private(set) var isRefreshing: Bool = false
+    /// 首次行情请求是否已经结束(成功或失败)。只在真正的首次加载阶段显示 spinner,
+    /// 避免缓存存在或网络失败时,每次后台重试都让底部状态栏闪一下。
+    @Published private(set) var hasCompletedInitialRefresh: Bool = false
     /// snapshot/quotes 当前值的来源是否是磁盘缓存(尚未拿到任何成功的网络响应)。
     /// UI 据此显示「显示的是上次的数据,正在更新...」提示。
     @Published private(set) var snapshotIsFromCache: Bool = false
@@ -226,7 +229,10 @@ final class QuoteRefresher: ObservableObject {
     private func tick() async {
         guard !isRefreshing else { return }
         isRefreshing = true
-        defer { isRefreshing = false }
+        defer {
+            isRefreshing = false
+            hasCompletedInitialRefresh = true
+        }
 
         do {
             let snap = try await service.computeSnapshot()

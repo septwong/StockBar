@@ -70,7 +70,8 @@ actor PortfolioService {
         holdings: [Holding],
         quotes: [SymbolID: Quote],
         converter: CurrencyConverter,
-        baseCurrency: Currency
+        baseCurrency: Currency,
+        asOf: Date = Date()
     ) -> PortfolioSnapshot {
         var positions: [HoldingPosition] = []
         var totalAssets: Decimal = 0
@@ -81,7 +82,6 @@ actor PortfolioService {
         for h in holdings {
             let q = quotes[h.symbol]
             let price = q?.price ?? h.costPrice
-            let prevClose = q?.prevClose ?? price
             let marketValue = price * h.quantity
             let costValue = h.costPrice * h.quantity
             let pnl = marketValue - costValue
@@ -89,7 +89,7 @@ actor PortfolioService {
                 guard costValue > 0 else { return 0 }
                 return (pnl / costValue as NSDecimalNumber).doubleValue
             }()
-            let dayPnL = (price - prevClose) * h.quantity
+            let dayPnL = q.map { h.todayPnL(for: $0, asOf: asOf) } ?? 0
 
             let baseMarketValue = converter.convert(marketValue, from: h.currency, to: baseCurrency)
             let baseTodayPnL = converter.convert(dayPnL, from: h.currency, to: baseCurrency)
@@ -134,7 +134,7 @@ actor PortfolioService {
             allTimePnLPct: allTimePnLPct,
             positions: positions,
             allQuotes: quotes,
-            asOf: Date()
+            asOf: asOf
         )
     }
 
