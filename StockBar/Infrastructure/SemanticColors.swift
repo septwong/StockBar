@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// 全局涨跌配色。统一从这里取,确保:
-///  - 菜单栏 ticker(深色背景)对比度足够
+///  - 菜单栏 ticker 在浅色/深色背景下对比度足够
 ///  - Popover 半透明面板上文字在深色 / 浅色模式都清晰
 ///  - 三种 scheme(East / West / Mono)语义一致
 enum SemanticColors {
@@ -26,18 +26,18 @@ enum SemanticColors {
 
     // MARK: NSColor 版本(菜单栏 ticker)
 
-    /// 菜单栏始终深底(背景由系统模糊产生 vibrancy),用偏亮的色保证对比度。
+    /// 菜单栏行情使用动态颜色，跟随离屏渲染时注入的状态栏外观。
     static func upNS(scheme: TickerColorScheme) -> NSColor {
         switch scheme {
-        case .east: return NSColor(srgbRed: 1.00, green: 0.271, blue: 0.227, alpha: 1) // #FF453A
-        case .west: return NSColor(srgbRed: 0.188, green: 0.820, blue: 0.345, alpha: 1) // #30D158
+        case .east: return dynamicRed
+        case .west: return dynamicGreen
         case .mono: return NSColor.labelColor
         }
     }
     static func downNS(scheme: TickerColorScheme) -> NSColor {
         switch scheme {
-        case .east: return NSColor(srgbRed: 0.188, green: 0.820, blue: 0.345, alpha: 1)
-        case .west: return NSColor(srgbRed: 1.00, green: 0.271, blue: 0.227, alpha: 1)
+        case .east: return dynamicGreen
+        case .west: return dynamicRed
         case .mono: return NSColor.labelColor
         }
     }

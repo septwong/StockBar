@@ -24,6 +24,8 @@ protocol MenuBarTickerView: NSView {
 }
 
 /// 共用的渲染实现:cacheDisplay 强制 view 重画到 bitmap,封装成 NSImage 设 isTemplate=false。
+/// 调用前由 controller 把 view.appearance 设为状态栏按钮的 effectiveAppearance，
+/// 这样 bitmap 内的系统动态颜色仍能跟随浅色/深色菜单栏。
 extension MenuBarTickerView {
     func defaultRenderImage() -> NSImage {
         let size = NSSize(width: totalWidth, height: 22)

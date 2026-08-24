@@ -65,7 +65,8 @@ final class CompactTickerView: NSView {
     private func commonInit() {
         wantsLayer = true
         layer?.backgroundColor = .clear
-        appearance = NSAppearance(named: .darkAqua)
+        // 离屏渲染前由 StatusItemController 注入状态栏按钮的 effectiveAppearance。
+        // 这里不要固定为 darkAqua，否则浅色菜单栏会把动态文字渲染成白色。
     }
 
     func update(slots: Slots) {
@@ -118,14 +119,14 @@ final class CompactTickerView: NSView {
     private func piece(label: String, value: Decimal, direction: TickerDirection) -> NSAttributedString {
         let labelAttr: [NSAttributedString.Key: Any] = [
             .font: labelFont,
-            .foregroundColor: NSColor.white.withAlphaComponent(0.55),
+            .foregroundColor: NSColor.secondaryLabelColor,
             .kern: 0.3
         ]
         let color: NSColor = {
             switch direction {
             case .up:      return SemanticColors.upNS(scheme: scheme)
             case .down:    return SemanticColors.downNS(scheme: scheme)
-            case .neutral: return NSColor.white.withAlphaComponent(0.92)
+            case .neutral: return NSColor.labelColor
             }
         }()
         let valueAttr: [NSAttributedString.Key: Any] = [

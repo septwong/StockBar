@@ -64,7 +64,8 @@ final class SingleQuoteTickerView: NSView {
     private func commonInit() {
         wantsLayer = true
         layer?.backgroundColor = .clear
-        appearance = NSAppearance(named: .darkAqua)
+        // 离屏渲染前由 StatusItemController 注入状态栏按钮的 effectiveAppearance。
+        // 这里不要固定为 darkAqua，否则浅色菜单栏会把动态文字渲染成白色。
     }
 
     func update(content: Content?) {
@@ -125,11 +126,11 @@ final class SingleQuoteTickerView: NSView {
         let name = TickerDisplayFormatting.shortenedName(content.name, market: content.symbol.market)
         let nameAttr: [NSAttributedString.Key: Any] = [
             .font: menuBarFont,
-            .foregroundColor: NSColor.white.withAlphaComponent(0.90)
+            .foregroundColor: NSColor.labelColor
         ]
         let valueAttr: [NSAttributedString.Key: Any] = [
             .font: valueFont,
-            .foregroundColor: NSColor.white.withAlphaComponent(0.80)
+            .foregroundColor: NSColor.labelColor
         ]
         let changeColor: NSColor
         if let changePct = content.changePct {
@@ -138,10 +139,10 @@ final class SingleQuoteTickerView: NSView {
             } else if changePct < 0 {
                 changeColor = SemanticColors.downNS(scheme: scheme)
             } else {
-                changeColor = NSColor.white.withAlphaComponent(0.92)
+                changeColor = NSColor.labelColor
             }
         } else {
-            changeColor = NSColor.white.withAlphaComponent(0.65)
+            changeColor = NSColor.secondaryLabelColor
         }
         let changeAttr: [NSAttributedString.Key: Any] = [
             .font: changeFont,

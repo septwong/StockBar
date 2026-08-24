@@ -38,7 +38,7 @@ struct TickerRenderer {
         let out = NSMutableAttributedString()
         let separatorAttr = NSAttributedString(string: "  ·  ", attributes: [
             .font: font,
-            .foregroundColor: NSColor.white.withAlphaComponent(0.45)
+            .foregroundColor: NSColor.tertiaryLabelColor
         ])
 
         for (i, item) in items.enumerated() {
@@ -58,11 +58,11 @@ struct TickerRenderer {
     private func indexPiece(for q: IndexQuote) -> NSAttributedString {
         let nameAttr: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: NSColor.white.withAlphaComponent(0.92)
+            .foregroundColor: NSColor.labelColor
         ]
         let valueAttr: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: font.pointSize, weight: .regular),
-            .foregroundColor: NSColor.white.withAlphaComponent(0.75)
+            .foregroundColor: NSColor.labelColor
         ]
         let pctColor = q.change >= 0 ? upColor : downColor
         let pctAttr: [NSAttributedString.Key: Any] = [
@@ -80,18 +80,18 @@ struct TickerRenderer {
     }
 
     private func summaryPiece(label: String, value: String, direction: TickerDirection) -> NSAttributedString {
-        // label 部分:小一号、白色 + 50% 透明,加底色块区分,避免和股票名混淆。
+        // label 部分:小一号、次级标签色,加字距区分,避免和股票名混淆。
         // 由于 NSAttributedString 不支持背景圆角,改用更明显的字体处理:粗体 + 字距 + 后缀冒号。
         let labelAttr: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: font.pointSize - 1, weight: .semibold),
-            .foregroundColor: NSColor.white.withAlphaComponent(0.55),
+            .foregroundColor: NSColor.secondaryLabelColor,
             .kern: 0.6
         ]
         let valueColor: NSColor
         switch direction {
         case .up:      valueColor = upColor
         case .down:    valueColor = downColor
-        case .neutral: valueColor = NSColor.white.withAlphaComponent(0.95)
+        case .neutral: valueColor = NSColor.labelColor
         }
         let valueAttr: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: font.pointSize, weight: .semibold),
@@ -104,23 +104,22 @@ struct TickerRenderer {
     }
 
     private func piece(for q: Quote) -> NSAttributedString {
-        // 关掉 vibrancy 之后,系统 secondaryLabelColor 会被原色渲染,在菜单栏深底上显得太灰。
-        // 改用固定白色不同 alpha,确保层级清晰:
-        //   - 代码:100% 白(主信息)
-        //   - 名称:80% 白(辅助识别)
-        //   - 价格:80% 白 + 等宽数字
-        //   - 涨跌:语义红/绿
+        // 使用系统动态标签色，跟随状态栏按钮的 effectiveAppearance，
+        // 使同一张离屏图片在浅色和深色菜单栏中都保持清晰:
+        //   - 代码:主标签色
+        //   - 名称/价格:主标签色 + 等宽数字
+        //   - 涨跌:动态语义红/绿
         let symbolAttr: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: NSColor.white
+            .foregroundColor: NSColor.labelColor
         ]
         let nameAttr: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: NSColor.white.withAlphaComponent(0.80)
+            .foregroundColor: NSColor.labelColor
         ]
         let valueAttr: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: font.pointSize, weight: .regular),
-            .foregroundColor: NSColor.white.withAlphaComponent(0.80)
+            .foregroundColor: NSColor.labelColor
         ]
         let pctColor = q.change >= 0 ? upColor : downColor
         let pctAttr: [NSAttributedString.Key: Any] = [

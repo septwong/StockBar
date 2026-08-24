@@ -70,7 +70,8 @@ final class TickerView: NSView {
     private func commonInit() {
         wantsLayer = true
         layer?.backgroundColor = .clear
-        appearance = NSAppearance(named: .darkAqua)
+        // 离屏渲染前由 StatusItemController 注入状态栏按钮的 effectiveAppearance。
+        // 这里不要固定为 darkAqua，否则浅色菜单栏会把动态文字渲染成白色。
         startAnimation()
     }
 

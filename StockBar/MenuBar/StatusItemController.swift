@@ -6,6 +6,7 @@ import Combine
 @MainActor
 final class StatusItemController {
     private let statusItem: NSStatusItem
+    private let statusItemAutosaveName: String
     /// 真实的 ticker 视图,类型随 displayMode 变化(滚动/轮播/固定/极简)。
     private var tickerView: MenuBarTickerView
     private let popoverController: PopoverController
@@ -22,6 +23,8 @@ final class StatusItemController {
     private var privacyHidden: Bool = false
     private var currentMode: TickerDisplayMode = .scroll
     private var lockedPopoverLength: CGFloat?
+    private var notchRepairScheduled = false
+    private var didRepairNotchPosition = false
     /// MarketClock 没有发布状态变化,用轻量定时器让休市暂停在开收盘时自动跟随。
     private var animationPauseTimer: Timer?
 
@@ -42,10 +45,11 @@ final class StatusItemController {
         self.holdingsRepo = holdingsRepo
         self.watchlistRepo = watchlistRepo
         self.renderer = TickerRenderer(scheme: prefs.colorScheme)
+        self.statusItemAutosaveName = "\(Bundle.main.bundleIdentifier ?? "vip.eztool.StockBar").statusItem"
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         // autosaveName 让 macOS 持久化用户 ⌘-拖到的位置,下次启动不重置。
-        // 这是「被刘海挡掉」时唯一能做的:用户挪到 notch 左边后位置就保住了。
-        self.statusItem.autosaveName = "vip.eztool.StockBar.statusItem"
+        // Debug 和 Release 使用不同的 key,避免两个进程互相覆盖位置。
+        self.statusItem.autosaveName = statusItemAutosaveName
         self.currentMode = prefs.displayMode
         self.tickerView = Self.makeView(for: prefs.displayMode, scheme: prefs.colorScheme)
         self.contextMenu = NSMenu()
@@ -227,10 +231,63 @@ final class StatusItemController {
     /// 把当前 tickerView 渲染到 NSImage 并设给 button。
     private func refreshButtonImage() {
         guard let button = statusItem.button else { return }
+        // tickerView 是离屏渲染的 NSView，不会自动继承状态栏按钮的外观。
+        // 注入按钮的 effectiveAppearance，才能让 labelColor、secondaryLabelColor
+        // 以及自定义涨跌色在浅色/深色菜单栏中正确解析。
+        tickerView.appearance = button.effectiveAppearance
         let image = tickerView.renderImage()
         button.image = image
         button.imagePosition = .imageOnly
         statusItem.length = lockedPopoverLength ?? tickerView.totalWidth
+        scheduleNotchPositionRepair()
+    }
+
+    /// 菜单栏有刘海的 Mac 上,旧的状态栏位置可能落在中间的不可见区域。
+    /// 只在确认当前 item 与刘海相交时清除位置缓存,不会影响用户在安全区域内的自定义位置。
+    private func scheduleNotchPositionRepair() {
+        guard !notchRepairScheduled, !didRepairNotchPosition else { return }
+        notchRepairScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.notchRepairScheduled = false
+            self.repairNotchPositionIfNeeded()
+        }
+    }
+
+    private func repairNotchPositionIfNeeded() {
+        guard !didRepairNotchPosition,
+              let button = statusItem.button,
+              let window = button.window,
+              let screen = window.screen else { return }
+
+        guard let leftArea = screen.auxiliaryTopLeftArea,
+              let rightArea = screen.auxiliaryTopRightArea,
+              !leftArea.isEmpty,
+              !rightArea.isEmpty else { return }
+
+        let notchMinX = leftArea.maxX
+        let notchMaxX = rightArea.minX
+        guard notchMaxX > notchMinX else { return }
+        let notch = NSRect(
+            x: notchMinX,
+            y: min(leftArea.minY, rightArea.minY),
+            width: notchMaxX - notchMinX,
+            height: max(leftArea.height, rightArea.height)
+        )
+        guard window.frame.intersects(notch) else { return }
+
+        didRepairNotchPosition = true
+        // Setting autosaveName to nil clears the saved position for this item.
+        // Reinsert it once so AppKit chooses the nearest available safe slot, then
+        // restore the per-build key for future user-driven position changes.
+        UserDefaults.standard.removeObject(forKey: "NSStatusItem Preferred Position \(statusItemAutosaveName)")
+        statusItem.autosaveName = nil
+        statusItem.isVisible = false
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.statusItem.isVisible = true
+            self.statusItem.autosaveName = self.statusItemAutosaveName
+        }
     }
 
     private func lockPopoverLength() {
@@ -388,6 +445,27 @@ final class StatusItemController {
     }
 
     private func bind() {
+        // 菜单栏的浅/深外观可能只改变状态栏按钮(例如跨屏或壁纸变化),
+        // 不一定触发 NSApp.effectiveAppearance。以 button 为准才能立即重绘。
+        if let button = statusItem.button {
+            button.publisher(for: \.effectiveAppearance, options: [.initial, .new])
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    self?.refreshButtonImage()
+                }
+                .store(in: &cancellables)
+        }
+
+        // 系统外观或应用主题切换时，离屏图片需要重新解析动态颜色。
+        // NSApplication 对 effectiveAppearance 提供 KVO，使用 Combine 监听即可
+        // 覆盖系统模式和设置页中的浅色/深色/跟随系统切换。
+        NSApp.publisher(for: \.effectiveAppearance, options: [.new])
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.refreshButtonImage()
+            }
+            .store(in: &cancellables)
+
         refresher.$quotes
             .receive(on: DispatchQueue.main)
             .sink { [weak self] quotes in
@@ -426,7 +504,7 @@ final class StatusItemController {
 
         let labelAttr: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: font.pointSize - 1, weight: .semibold),
-            .foregroundColor: NSColor.white.withAlphaComponent(0.55),
+            .foregroundColor: NSColor.secondaryLabelColor,
             .kern: 0.3
         ]
         func valueAttr(_ dir: TickerDirection) -> [NSAttributedString.Key: Any] {
@@ -434,7 +512,7 @@ final class StatusItemController {
             switch dir {
             case .up:      color = SemanticColors.upNS(scheme: prefs.colorScheme)
             case .down:    color = SemanticColors.downNS(scheme: prefs.colorScheme)
-            case .neutral: color = NSColor.white.withAlphaComponent(0.92)
+            case .neutral: color = NSColor.labelColor
             }
             return [
                 .font: NSFont.monospacedDigitSystemFont(ofSize: font.pointSize, weight: .semibold),
