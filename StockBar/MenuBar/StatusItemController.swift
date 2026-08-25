@@ -647,6 +647,11 @@ final class StatusItemController {
     }
 
     private func showContextMenu() {
+        // NSMenu may inherit the status item's menu-bar surface appearance. On a
+        // light system this can still produce a dark menu when the menu bar is
+        // rendered with a dark wallpaper/overlay. Use the app's effective theme
+        // so system/light/dark settings are applied consistently to the menu.
+        contextMenu.appearance = NSApp.effectiveAppearance
         contextMenu.popUp(
             positioning: nil,
             at: NSPoint(x: tickerHostView.bounds.midX, y: tickerHostView.bounds.minY),
