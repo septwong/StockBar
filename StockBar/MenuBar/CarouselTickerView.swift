@@ -60,8 +60,7 @@ final class CarouselTickerView: NSView {
     private func commonInit() {
         wantsLayer = true
         layer?.backgroundColor = .clear
-        // 离屏渲染前由 StatusItemController 注入状态栏按钮的 effectiveAppearance。
-        // 这里不要固定为 darkAqua，否则浅色菜单栏会把动态文字渲染成白色。
+        // 作为 status item 自定义 view 绘制，动态颜色由当前菜单栏副本解析。
         startAnimation()
     }
 

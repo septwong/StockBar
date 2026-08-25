@@ -26,7 +26,7 @@ enum SemanticColors {
 
     // MARK: NSColor 版本(菜单栏 ticker)
 
-    /// 菜单栏行情使用动态颜色，跟随离屏渲染时注入的状态栏外观。
+    /// 菜单栏行情使用动态颜色，跟随当前菜单栏副本的外观。
     static func upNS(scheme: TickerColorScheme) -> NSColor {
         switch scheme {
         case .east: return dynamicRed

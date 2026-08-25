@@ -104,8 +104,7 @@ struct TickerRenderer {
     }
 
     private func piece(for q: Quote) -> NSAttributedString {
-        // 使用系统动态标签色，跟随状态栏按钮的 effectiveAppearance，
-        // 使同一张离屏图片在浅色和深色菜单栏中都保持清晰:
+        // 使用系统动态标签色，跟随当前菜单栏副本的外观:
         //   - 代码:主标签色
         //   - 名称/价格:主标签色 + 等宽数字
         //   - 涨跌:动态语义红/绿

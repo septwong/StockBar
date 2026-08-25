@@ -9,6 +9,8 @@ final class StatusItemController {
     private let statusItemAutosaveName: String
     /// 真实的 ticker 视图,类型随 displayMode 变化(滚动/轮播/固定/极简)。
     private var tickerView: MenuBarTickerView
+    /// 作为 status item 自定义 view 的宿主,让 macOS 为每个菜单栏副本分别绘制。
+    private let tickerHostView: StatusItemTickerHostView
     private let popoverController: PopoverController
     private let refresher: QuoteRefresher
     private let prefs: TickerPreferences
@@ -51,7 +53,9 @@ final class StatusItemController {
         // Debug 和 Release 使用不同的 key,避免两个进程互相覆盖位置。
         self.statusItem.autosaveName = statusItemAutosaveName
         self.currentMode = prefs.displayMode
-        self.tickerView = Self.makeView(for: prefs.displayMode, scheme: prefs.colorScheme)
+        let initialTickerView = Self.makeView(for: prefs.displayMode, scheme: prefs.colorScheme)
+        self.tickerView = initialTickerView
+        self.tickerHostView = StatusItemTickerHostView(tickerView: initialTickerView)
         self.contextMenu = NSMenu()
 
         // 屏幕共享检测
@@ -151,12 +155,13 @@ final class StatusItemController {
         }
     }
 
-    /// 切换 ticker view 时,卸下旧的回调,接上新的。view 不挂到 button 子视图,
-    /// 通过 onContentChanged 回调把渲染好的 NSImage 设给 button.image。
+    /// 切换 ticker view 时,卸下旧的回调,接上新的。
     private func swapTickerView(to mode: TickerDisplayMode) {
         tickerView.onContentChanged = nil
         tickerView.invalidateAnimation()
-        tickerView = Self.makeView(for: mode, scheme: prefs.colorScheme)
+        let newTickerView = Self.makeView(for: mode, scheme: prefs.colorScheme)
+        tickerView = newTickerView
+        tickerHostView.replaceTickerView(newTickerView)
         wireUpTickerView()
         currentMode = mode
     }
@@ -165,14 +170,12 @@ final class StatusItemController {
     private var mouseMovedMonitors: [Any] = []
 
     private func configure() {
-        guard let button = statusItem.button else { return }
-        button.frame = NSRect(x: 0, y: 0, width: tickerView.totalWidth, height: 22)
-        button.target = self
-        button.action = #selector(onClick(_:))
-        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-        // ticker 改为离屏渲染成 NSImage 贴到 button 上后(见 cbd3831),view 不在窗口
-        // 层级里,加在 button 上的 NSTrackingArea 实测收不到 mouseEntered/Exited,
-        // 导致 hover 暂停失效。改用 mouse-moved 监听 + 屏幕坐标判断,可靠得多。
+        // 自定义 view 让系统为每个屏幕的菜单栏副本分别绘制，避免把某一块屏幕
+        // 捕获到的白色位图复制到另一块屏幕的浅色/非活跃菜单栏。
+        statusItem.view = tickerHostView
+        tickerHostView.onClick = { [weak self] event in
+            self?.handleStatusItemClick(event)
+        }
         startHoverTracking()
 
         wireUpTickerView()
@@ -195,8 +198,8 @@ final class StatusItemController {
     }
 
     private func updateHoverState() {
-        guard let button = statusItem.button, let window = button.window else { return }
-        let rectOnScreen = window.convertToScreen(button.convert(button.bounds, to: nil))
+        guard let window = tickerHostView.window else { return }
+        let rectOnScreen = window.convertToScreen(tickerHostView.convert(tickerHostView.bounds, to: nil))
         let isHovering = rectOnScreen.contains(NSEvent.mouseLocation)
         if tickerView.hovered != isHovering {
             tickerView.hovered = isHovering
@@ -218,26 +221,26 @@ final class StatusItemController {
         animationPauseTimer?.tolerance = 1
     }
 
-    /// 把当前 tickerView 接到 button:订阅内容变化 → 渲染 NSImage → 写回 button.image。
-    /// view 始终不挂到 button 子视图;系统对菜单栏 subview 的 vibrancy 滤镜
-    /// 只对 NSView 树生效,对 NSImage 不生效,这样能避免「app 不激活时颜色变浅」。
+    /// 把当前 tickerView 接到 status item:内容变化时更新尺寸并请求重绘。
+    /// 不再缓存 NSImage，因此每个屏幕上的 status item 副本都能用自己的菜单栏外观
+    /// 解析动态颜色。
     private func wireUpTickerView() {
         tickerView.onContentChanged = { [weak self] in
-            self?.refreshButtonImage()
+            self?.refreshStatusItemView()
         }
-        refreshButtonImage()
+        refreshStatusItemView()
     }
 
-    /// 把当前 tickerView 渲染到 NSImage 并设给 button。
-    private func refreshButtonImage() {
-        guard let button = statusItem.button else { return }
-        // tickerView 是离屏渲染的 NSView，不会自动继承状态栏按钮的外观。
-        // 注入按钮的 effectiveAppearance，才能让 labelColor、secondaryLabelColor
-        // 以及自定义涨跌色在浅色/深色菜单栏中正确解析。
-        tickerView.appearance = button.effectiveAppearance
-        let image = tickerView.renderImage()
-        button.image = image
-        button.imagePosition = .imageOnly
+    private func refreshStatusItemView() {
+        tickerHostView.frame = NSRect(
+            x: 0,
+            y: 0,
+            width: tickerView.totalWidth,
+            height: 22
+        )
+        tickerHostView.needsLayout = true
+        tickerHostView.needsDisplay = true
+        tickerView.needsDisplay = true
         statusItem.length = lockedPopoverLength ?? tickerView.totalWidth
         scheduleNotchPositionRepair()
     }
@@ -256,8 +259,7 @@ final class StatusItemController {
 
     private func repairNotchPositionIfNeeded() {
         guard !didRepairNotchPosition,
-              let button = statusItem.button,
-              let window = button.window,
+              let window = tickerHostView.window,
               let screen = window.screen else { return }
 
         guard let leftArea = screen.auxiliaryTopLeftArea,
@@ -299,7 +301,7 @@ final class StatusItemController {
     private func unlockPopoverLength() {
         guard lockedPopoverLength != nil else { return }
         lockedPopoverLength = nil
-        refreshButtonImage()
+        refreshStatusItemView()
     }
 
     /// 各模式根据当前数据自己组装,写回到 statusItem.length。
@@ -445,24 +447,19 @@ final class StatusItemController {
     }
 
     private func bind() {
-        // 菜单栏的浅/深外观可能只改变状态栏按钮(例如跨屏或壁纸变化),
-        // 不一定触发 NSApp.effectiveAppearance。以 button 为准才能立即重绘。
-        if let button = statusItem.button {
-            button.publisher(for: \.effectiveAppearance, options: [.initial, .new])
-                .receive(on: DispatchQueue.main)
-                .sink { [weak self] _ in
-                    self?.refreshButtonImage()
-                }
-                .store(in: &cancellables)
-        }
+        // 自定义 status item view 会随各菜单栏副本自行解析动态颜色；这里仍监听
+        // 应用主题变化，确保设置页切换主题后当前副本立即请求重绘。
+        tickerHostView.publisher(for: \.effectiveAppearance, options: [.initial, .new])
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.refreshStatusItemView()
+            }
+            .store(in: &cancellables)
 
-        // 系统外观或应用主题切换时，离屏图片需要重新解析动态颜色。
-        // NSApplication 对 effectiveAppearance 提供 KVO，使用 Combine 监听即可
-        // 覆盖系统模式和设置页中的浅色/深色/跟随系统切换。
         NSApp.publisher(for: \.effectiveAppearance, options: [.new])
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.refreshButtonImage()
+                self?.refreshStatusItemView()
             }
             .store(in: &cancellables)
 
@@ -639,9 +636,8 @@ final class StatusItemController {
 
     // MARK: actions
 
-    @objc private func onClick(_ sender: Any?) {
-        let event = NSApp.currentEvent
-        if event?.type == .rightMouseUp {
+    private func handleStatusItemClick(_ event: NSEvent) {
+        if event.type == .rightMouseUp {
             showContextMenu()
         } else {
             togglePopover()
@@ -649,19 +645,19 @@ final class StatusItemController {
     }
 
     private func showContextMenu() {
-        guard let button = statusItem.button else { return }
-        statusItem.menu = contextMenu
-        button.performClick(nil)
-        statusItem.menu = nil
+        contextMenu.popUp(
+            positioning: nil,
+            at: NSPoint(x: tickerHostView.bounds.midX, y: tickerHostView.bounds.minY),
+            in: tickerHostView
+        )
     }
 
     private func togglePopover() {
-        guard let button = statusItem.button else { return }
         if popoverController.isShown {
             popoverController.close()
         } else {
             lockPopoverLength()
-            popoverController.show(relativeTo: button)
+            popoverController.show(relativeTo: tickerHostView)
         }
     }
 
@@ -680,9 +676,8 @@ final class StatusItemController {
     }
 
     @objc private func showPopover() {
-        guard let button = statusItem.button else { return }
         lockPopoverLength()
-        popoverController.show(relativeTo: button)
+        popoverController.show(relativeTo: tickerHostView)
     }
 
     @objc private func openSettings() {
@@ -704,7 +699,7 @@ final class StatusItemController {
     private func updateTickerVisibility(autoSharing: Bool) {
         let shouldHide = privacyHidden || autoSharing
         tickerView.privacyHidden = shouldHide
-        refreshButtonImage()
+        refreshStatusItemView()
     }
 
     @objc private func quit() {

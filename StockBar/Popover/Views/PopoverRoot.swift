@@ -181,8 +181,9 @@ struct PopoverRoot: View {
                         Image(systemName: footerIcon)
                             .foregroundColor(footerIconColor)
                     }
-                    Text(footerStatus)
-                        .foregroundColor(.secondary)
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        footerStatusText(at: context.date)
+                    }
                 }
                 .font(.system(size: 11))
             }
@@ -213,7 +214,23 @@ struct PopoverRoot: View {
         }
     }
 
-    private var footerStatus: String {
+    @ViewBuilder
+    private func footerStatusText(at date: Date) -> some View {
+        let status = footerStatus(at: date)
+        if #available(macOS 14.0, *) {
+            Text(status)
+                .foregroundColor(.secondary)
+                .monospacedDigit()
+                .contentTransition(.numericText())
+                .animation(.easeOut(duration: 0.2), value: status)
+        } else {
+            Text(status)
+                .foregroundColor(.secondary)
+                .monospacedDigit()
+        }
+    }
+
+    private func footerStatus(at date: Date) -> String {
         if refresher.isOffline {
             return L("footer.offline", comment: "")
         }
@@ -228,7 +245,7 @@ struct PopoverRoot: View {
             return L("footer.refreshing", comment: "")
         }
         if let t = refresher.lastUpdated {
-            let interval = Int(Date().timeIntervalSince(t))
+            let interval = max(0, Int(date.timeIntervalSince(t)))
             return String(format: L("footer.updated", comment: ""), interval)
         }
         return L("footer.loading", comment: "")
