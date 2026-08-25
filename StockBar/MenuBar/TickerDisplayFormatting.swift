@@ -12,10 +12,12 @@ enum TickerDisplayFormatting {
     }
 
     static func price(_ price: Decimal) -> String {
-        let formatter = NumberFormatter()
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSDecimalNumber(decimal: price)) ?? "\(price)"
+        DecimalFormatting.string(
+            price,
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+            usesGroupingSeparator: false
+        ) ?? "\(price)"
     }
 
     static func percent(_ changePct: Double) -> String {

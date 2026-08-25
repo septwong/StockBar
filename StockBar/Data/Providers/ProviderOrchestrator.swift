@@ -95,7 +95,7 @@ actor ProviderOrchestrator: QuoteProvider {
                 guard !requested.isEmpty else { break }
                 let result = try await provider.fetch(requested)
                 if !result.isEmpty {
-                    Log.quote.info("market=\(market.rawValue, privacy: .public) provider=\(pid.rawValue, privacy: .public) ok (\(result.count) quotes)")
+                    Log.quote.debug("market=\(market.rawValue, privacy: .public) provider=\(pid.rawValue, privacy: .public) ok (\(result.count) quotes)")
                     for (symbol, quote) in result where missing.contains(symbol) {
                         combined[symbol] = quote
                         missing.remove(symbol)

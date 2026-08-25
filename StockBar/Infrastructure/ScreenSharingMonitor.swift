@@ -15,6 +15,8 @@ import CoreGraphics
 /// Debug 构建会把检测决策写入各自的 Application Support 目录；Release 不落盘。
 @MainActor
 final class ScreenSharingMonitor {
+    typealias SharingWindow = (owner: String, name: String?)
+
     /// 已知和屏幕共享/录制相关的 bundle id。
     private static let knownSharingApps: Set<String> = [
         "us.zoom.xos",
@@ -58,27 +60,45 @@ final class ScreenSharingMonitor {
 
     private var timer: Timer?
     private var observers: [NSObjectProtocol] = []
+    private var enabled = false
+    private let candidateAppsRunning: @MainActor () -> Bool
+    private let sharingWindowScanner: @MainActor () -> SharingWindow?
+
+    init(
+        candidateAppsRunning: @escaping @MainActor () -> Bool = ScreenSharingMonitor.defaultCandidateAppsRunning,
+        sharingWindowScanner: @escaping @MainActor () -> SharingWindow? = ScreenSharingMonitor.defaultSharingWindow
+    ) {
+        self.candidateAppsRunning = candidateAppsRunning
+        self.sharingWindowScanner = sharingWindowScanner
+    }
 
     func start() {
-        diag("monitor start")
-        timer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.evaluate() }
+        setEnabled(true)
+    }
+
+    func setEnabled(_ value: Bool) {
+        guard enabled != value else { return }
+        enabled = value
+        if !value {
+            stop()
+            setSharing(false, reason: "disabled")
+            return
         }
-        timer?.tolerance = 0.5
+        diag("monitor start")
         let center = NSWorkspace.shared.notificationCenter
         observers.append(center.addObserver(
             forName: NSWorkspace.didLaunchApplicationNotification,
             object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.evaluate() }
+            Task { @MainActor in self?.evaluateCandidateState() }
         })
         observers.append(center.addObserver(
             forName: NSWorkspace.didTerminateApplicationNotification,
             object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.evaluate() }
+            Task { @MainActor in self?.evaluateCandidateState() }
         })
-        evaluate()
+        evaluateCandidateState()
     }
 
     func stop() {
@@ -88,13 +108,32 @@ final class ScreenSharingMonitor {
         observers.removeAll()
     }
 
+    private func evaluateCandidateState() {
+        guard enabled else { return }
+        if !candidateAppsRunning() {
+            timer?.invalidate()
+            timer = nil
+            setSharing(false, reason: "no candidate app")
+            return
+        }
+        evaluate()
+        guard timer == nil else { return }
+        timer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.evaluate() }
+        }
+        timer?.tolerance = 1
+    }
+
     private func evaluate() {
         let result = detectWithReason()
-        if result.isSharing != isSharing {
-            isSharing = result.isSharing
-            diag("→ \(result.isSharing ? "HIDE" : "SHOW") reason=\(result.reason)")
-            onChange?(result.isSharing)
-        }
+        setSharing(result.isSharing, reason: result.reason)
+    }
+
+    private func setSharing(_ value: Bool, reason: String) {
+        guard value != isSharing else { return }
+        isSharing = value
+        diag("→ \(value ? "HIDE" : "SHOW") reason=\(reason)")
+        onChange?(value)
     }
 
     private struct Detection {
@@ -106,14 +145,14 @@ final class ScreenSharingMonitor {
         // 只走窗口扫描:精确,无误报。
         // 进程兜底已移除(只要 Slack/Zoom 在跑就触发,误报太多)。
         // 用户希望最可靠的方式:⌘⌃M 手动切换隐私模式。
-        if let (owner, windowName) = sharingWindow() {
+        if let (owner, windowName) = sharingWindowScanner() {
             return Detection(isSharing: true, reason: "window owner=\(owner) name=\(windowName ?? "<nil>")")
         }
         return Detection(isSharing: false, reason: "no sharing window detected")
     }
 
-    private func knownAppsRunning() -> [NSRunningApplication] {
-        NSWorkspace.shared.runningApplications.filter {
+    private static func defaultCandidateAppsRunning() -> Bool {
+        NSWorkspace.shared.runningApplications.contains {
             guard let bid = $0.bundleIdentifier else { return false }
             return Self.knownSharingApps.contains(bid)
         }
@@ -121,7 +160,7 @@ final class ScreenSharingMonitor {
 
     /// 扫描屏幕上的窗口,看有没有匹配"分享时才会出现的"窗口。
     /// 返回 (owner, name)。
-    private func sharingWindow() -> (String, String?)? {
+    private static func defaultSharingWindow() -> SharingWindow? {
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
         guard let infos = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
             return nil
@@ -188,4 +227,8 @@ final class ScreenSharingMonitor {
         try? fm.createDirectory(at: base, withIntermediateDirectories: true)
         return base.appendingPathComponent("sharing.log")
     }()
+}
+
+extension Notification.Name {
+    static let stockBarScreenSharingPreferenceDidChange = Notification.Name("stockbar.screenSharingPreferenceDidChange")
 }

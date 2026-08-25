@@ -215,13 +215,12 @@ private struct FXRowView: View {
     }
 
     private func formatRate(_ value: Decimal) -> String {
-        let formatter = NumberFormatter()
-        formatter.minimumFractionDigits = 4
-        formatter.maximumFractionDigits = 4
-        formatter.groupingSeparator = ","
-        formatter.usesGroupingSeparator = true
-        formatter.numberStyle = .decimal
-        return formatter.string(from: NSDecimalNumber(decimal: value)) ?? "\(value)"
+        DecimalFormatting.string(
+            value,
+            minimumFractionDigits: 4,
+            maximumFractionDigits: 4,
+            usesGroupingSeparator: true
+        ) ?? "\(value)"
     }
 
     private func relativeTime(_ date: Date) -> String {

@@ -14,14 +14,12 @@ enum Currency: String, Codable, CaseIterable, Sendable {
     }
 
     func format(_ value: Decimal, fractionDigits: Int = 2) -> String {
-        let formatter = NumberFormatter()
-        formatter.minimumFractionDigits = fractionDigits
-        formatter.maximumFractionDigits = fractionDigits
-        formatter.groupingSeparator = ","
-        formatter.usesGroupingSeparator = true
-        formatter.numberStyle = .decimal
-        let n = NSDecimalNumber(decimal: value)
-        let text = formatter.string(from: n) ?? "\(value)"
+        let text = DecimalFormatting.string(
+            value,
+            minimumFractionDigits: fractionDigits,
+            maximumFractionDigits: fractionDigits,
+            usesGroupingSeparator: true
+        ) ?? "\(value)"
         return "\(symbol)\(text)"
     }
 }

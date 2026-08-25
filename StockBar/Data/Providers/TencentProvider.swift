@@ -91,10 +91,20 @@ struct TencentProvider: QuoteProvider {
 
     private func parseTencentTime(_ s: String?) -> Date? {
         guard let s = s, s.count >= 14 else { return nil }
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyyMMddHHmmss"
-        fmt.timeZone = TimeZone(identifier: "Asia/Shanghai")
-        return fmt.date(from: String(s.prefix(14)))
+        let digits = String(s.prefix(14))
+        guard let year = Int(digits.prefix(4)),
+              let month = Int(digits.dropFirst(4).prefix(2)),
+              let day = Int(digits.dropFirst(6).prefix(2)),
+              let hour = Int(digits.dropFirst(8).prefix(2)),
+              let minute = Int(digits.dropFirst(10).prefix(2)),
+              let second = Int(digits.dropFirst(12).prefix(2)) else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        return calendar.date(from: DateComponents(
+            timeZone: calendar.timeZone,
+            year: year, month: month, day: day,
+            hour: hour, minute: minute, second: second
+        ))
     }
 }
 

@@ -81,6 +81,44 @@ final class MarketClock: @unchecked Sendable {
         return false
     }
 
+    /// 当前全部休市时，返回下一次任一市场进入交易时段的时间。
+    /// 只检查未来两周，足以跨越周末、午休并覆盖当天手动 override。
+    func nextOpening(after date: Date) -> Date? {
+        var candidates: [Date] = []
+        for market in Market.allCases {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = market.timeZone
+            let startOfDay = calendar.startOfDay(for: date)
+            let sessionStarts: [(hour: Int, minute: Int)]
+            switch market {
+            case .a, .hk:
+                sessionStarts = [(9, 30), (13, 0)]
+            case .us:
+                sessionStarts = [(9, 30)]
+            }
+            for dayOffset in 0..<14 {
+                guard let day = calendar.date(byAdding: .day, value: dayOffset, to: startOfDay) else { continue }
+                var found = false
+                for start in sessionStarts {
+                    guard let opening = calendar.date(
+                        bySettingHour: start.hour,
+                        minute: start.minute,
+                        second: 0,
+                        of: day
+                    ), opening > date else { continue }
+                    // 加一秒避开边界比较误差，并让 override/weekend 规则统一生效。
+                    if status(market, at: opening.addingTimeInterval(1)) == .open {
+                        candidates.append(opening)
+                        found = true
+                        break
+                    }
+                }
+                if found { break }
+            }
+        }
+        return candidates.min()
+    }
+
     // MARK: - Override(节假日纠错)
 
     /// 读取 settings 里这个市场的 override,仅当 override 日期匹配「该市场时区下今天」时才生效。
@@ -97,11 +135,13 @@ final class MarketClock: @unchecked Sendable {
     }
 
     static func dateString(_ date: Date, tz: TimeZone) -> String {
-        let f = DateFormatter()
-        f.calendar = Calendar(identifier: .gregorian)
-        f.timeZone = tz
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        return f.string(from: date)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = tz
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
     }
+}
+
+extension Notification.Name {
+    static let stockBarMarketScheduleDidChange = Notification.Name("stockbar.marketScheduleDidChange")
 }

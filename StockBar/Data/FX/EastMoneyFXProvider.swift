@@ -177,7 +177,7 @@ struct FallbackFXProvider: FXProvider {
                     result[key] = rate
                 }
                 remaining.removeAll { result[Self.key($0.0, $0.1)] != nil }
-                Log.fx.info("provider=\(provider.id, privacy: .public) ok pairs=\(rates.count, privacy: .public) remaining=\(remaining.count, privacy: .public)")
+                Log.fx.debug("provider=\(provider.id, privacy: .public) ok pairs=\(rates.count, privacy: .public) remaining=\(remaining.count, privacy: .public)")
             } catch {
                 firstError = firstError ?? error
                 Log.fx.warning("provider=\(provider.id, privacy: .public) failed: \(String(describing: error), privacy: .public)")

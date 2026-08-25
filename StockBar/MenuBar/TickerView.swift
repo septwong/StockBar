@@ -11,12 +11,15 @@ final class TickerView: NSView {
     /// 是否在 hover 时暂停。
     var pauseOnHover: Bool = true
     /// 由 controller 同步过来的 hover 状态。
-    var hovered: Bool = false
+    var hovered: Bool = false { didSet { updateAnimationActivity() } }
     private var paused: Bool = false
     /// 内容或宽度变化后通知 controller 更新 status item 尺寸。
     var onContentChanged: (() -> Void)?
-    private var displayLink: CVDisplayLink?
+    private lazy var animationDriver = TickerAnimationDriver(view: self) { [weak self] timestamp in
+        self?.step(timestamp: timestamp)
+    }
     private var lastTimestamp: CFTimeInterval = 0
+    var isAnimationRunning: Bool { animationDriver.isRunning }
     /// 文字与图标之间的间距。
     let iconWidth: CGFloat = 18
     var preferredTotalWidth: CGFloat?
@@ -24,7 +27,7 @@ final class TickerView: NSView {
     /// 滚动文字可视区宽度(超出会被裁剪)。
     var visibleTextWidth: CGFloat = 280
     /// 隐私模式:屏幕共享或用户手动开启时,只显示图标和 "•••",不绘制具体行情。
-    var privacyHidden: Bool = false
+    var privacyHidden: Bool = false { didSet { updateAnimationActivity() } }
     /// 没有任何可见内容时仍保留一点点击区域,但不显示占位文字。
     private let emptyHitTargetWidth: CGFloat = 24
 
@@ -71,11 +74,6 @@ final class TickerView: NSView {
         wantsLayer = true
         layer?.backgroundColor = .clear
         // 作为 status item 自定义 view 绘制，动态颜色由当前菜单栏副本解析。
-        startAnimation()
-    }
-
-    deinit {
-        stopAnimation()
     }
 
     // MARK: data
@@ -94,40 +92,40 @@ final class TickerView: NSView {
         }
         needsDisplay = true
         onContentChanged?()
+        updateAnimationActivity()
     }
 
     func setPaused(_ value: Bool) {
         paused = value
+        updateAnimationActivity()
     }
+
+    func setLowPowerMode(_ enabled: Bool) { animationDriver.setLowPowerMode(enabled) }
 
     // MARK: animation
 
-    private func startAnimation() {
-        var dl: CVDisplayLink?
-        CVDisplayLinkCreateWithActiveCGDisplays(&dl)
-        guard let dl = dl else { return }
-        displayLink = dl
-        let opaqueSelf = Unmanaged.passUnretained(self).toOpaque()
-        CVDisplayLinkSetOutputCallback(dl, { _, inNow, _, _, _, displayLinkContext in
-            guard let context = displayLinkContext else { return kCVReturnSuccess }
-            let view = Unmanaged<TickerView>.fromOpaque(context).takeUnretainedValue()
-            let now = inNow.pointee
-            let timestamp = CFTimeInterval(now.hostTime) / CFTimeInterval(CVGetHostClockFrequency())
-            DispatchQueue.main.async {
-                view.step(timestamp: timestamp)
-            }
-            return kCVReturnSuccess
-        }, opaqueSelf)
-        CVDisplayLinkStart(dl)
-    }
-
-    private func stopAnimation() {
-        if let dl = displayLink { CVDisplayLinkStop(dl) }
-        displayLink = nil
-    }
-
     func invalidateAnimation() {
-        stopAnimation()
+        animationDriver.stop()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateAnimationActivity()
+    }
+
+    private func updateAnimationActivity() {
+        let shouldRun = window != nil
+            && attributedWidth > 0
+            && !paused
+            && !(pauseOnHover && hovered)
+            && !privacyHidden
+        if shouldRun {
+            if !animationDriver.isRunning { lastTimestamp = 0 }
+            animationDriver.start()
+        } else {
+            animationDriver.stop()
+            lastTimestamp = 0
+        }
     }
 
     private func step(timestamp: CFTimeInterval) {

@@ -118,7 +118,7 @@ final class CompactTickerView: NSView {
     private func piece(label: String, value: Decimal, direction: TickerDirection) -> NSAttributedString {
         let labelAttr: [NSAttributedString.Key: Any] = [
             .font: labelFont,
-            .foregroundColor: NSColor.secondaryLabelColor,
+            .foregroundColor: NSColor.labelColor,
             .kern: 0.3
         ]
         let color: NSColor = {

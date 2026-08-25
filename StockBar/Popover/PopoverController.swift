@@ -45,15 +45,6 @@ final class PopoverController {
         let popover = NSPopover()
         popover.behavior = .transient
         popover.contentSize = NSSize(width: 360, height: 520)
-        popover.contentViewController = NSHostingController(rootView:
-            PopoverRoot()
-                .environmentObject(viewModel)
-                .environmentObject(refresher)
-                .environmentObject(appearancePrefs)
-                .environmentObject(tickerPrefs)
-                .environment(\.container, container)  // 修复:之前没注入,导致 IndicesTab 拿不到 indexService
-                .frame(width: 360, height: 520)
-        )
         self.popover = popover
 
         // popover 通过 .transient 行为自己关时,也要更新 refresher 状态
@@ -79,11 +70,14 @@ final class PopoverController {
     private func handlePopoverClosed() {
         stopOutsideClickMonitor()
         refresher.setPopoverOpen(false)
+        viewModel.setActive(false)
+        popover.contentViewController = nil
         onClose?()
     }
 
     func show(relativeTo view: NSView, anchorWidth: CGFloat? = nil) {
         let width = preferredPopoverWidth(screen: view.window?.screen)
+        viewModel.setActive(true)
         applyContentWidth(width)
         refresher.setPopoverOpen(true)
         refresher.refreshNow()
@@ -245,6 +239,8 @@ final class PopoverController {
         stopOutsideClickMonitor()
         popover.performClose(nil)
         refresher.setPopoverOpen(false)
+        viewModel.setActive(false)
+        popover.contentViewController = nil
     }
 
     /// 全局监听点击事件,任何 popover 之外的点都关掉它。

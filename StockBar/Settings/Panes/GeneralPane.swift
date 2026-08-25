@@ -143,6 +143,7 @@ private struct GeneralPaneContent: View {
                 Toggle(L("settings.hideOnScreenShare", comment: ""), isOn: $hideOnScreenShare)
                     .onChange(of: hideOnScreenShare) { value in
                         try? container.settingsRepo.set(SettingsRepository.Keys.hideOnScreenShare, value ? "1" : "0")
+                        NotificationCenter.default.post(name: .stockBarScreenSharingPreferenceDidChange, object: value)
                     }
                 Text(L("settings.hideOnScreenShare.hint", comment: ""))
                     .font(.caption)

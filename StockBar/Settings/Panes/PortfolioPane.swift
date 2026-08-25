@@ -291,20 +291,26 @@ struct PortfolioPane: View {
     }
 
     private func quantityText(_ value: Decimal) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.usesGroupingSeparator = true
-        formatter.minimumFractionDigits = 0
-        formatter.maximumFractionDigits = 6
-        return formatter.string(from: NSDecimalNumber(decimal: value)) ?? NSDecimalNumber(decimal: value).stringValue
+        DecimalFormatting.string(
+            value,
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 6,
+            usesGroupingSeparator: true
+        ) ?? NSDecimalNumber(decimal: value).stringValue
     }
 
     private func createdAtText(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        return formatter.string(from: date)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        return String(
+            format: "%04d-%02d-%02d %02d:%02d",
+            parts.year ?? 0,
+            parts.month ?? 0,
+            parts.day ?? 0,
+            parts.hour ?? 0,
+            parts.minute ?? 0
+        )
     }
 
     /// 把 droppedIDs(UUID string)对应的行移到 ontoIndex 位置,持久化新 sortOrder。

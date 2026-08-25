@@ -94,7 +94,7 @@ final class MinimalTickerView: NSView {
         }()
         let labelAttr: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 9, weight: .semibold),
-            .foregroundColor: NSColor.secondaryLabelColor
+            .foregroundColor: NSColor.labelColor
         ]
         let valueAttr: [NSAttributedString.Key: Any] = [
             .font: valueFont,

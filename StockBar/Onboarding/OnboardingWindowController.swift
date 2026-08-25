@@ -2,11 +2,11 @@ import AppKit
 import SwiftUI
 
 @MainActor
-final class OnboardingWindowController {
+final class OnboardingWindowController: NSObject, NSWindowDelegate {
     static let shared = OnboardingWindowController()
     private var window: NSWindow?
 
-    private init() {}
+    private override init() { super.init() }
 
     static func isOnboarded(repo: SettingsRepository) -> Bool {
         repo.string(Keys.onboarded) == "1"
@@ -38,6 +38,7 @@ final class OnboardingWindowController {
         w.setContentSize(NSSize(width: 520, height: 400))
         w.center()
         w.isReleasedWhenClosed = false
+        w.delegate = self
         w.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         self.window = w
@@ -45,6 +46,12 @@ final class OnboardingWindowController {
 
     func close() {
         window?.close()
+        window = nil
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        guard notification.object as? NSWindow === window else { return }
+        window?.contentViewController = nil
         window = nil
     }
 }

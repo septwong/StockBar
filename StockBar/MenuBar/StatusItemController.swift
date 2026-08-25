@@ -27,7 +27,7 @@ final class StatusItemController {
     private var lockedPopoverLength: CGFloat?
     private var notchRepairScheduled = false
     private var didRepairNotchPosition = false
-    /// MarketClock 没有发布状态变化,用轻量定时器让休市暂停在开收盘时自动跟随。
+    /// MarketClock 没有发布状态变化；只为下一次边界安排单次唤醒。
     private var animationPauseTimer: Timer?
 
     init(
@@ -61,14 +61,7 @@ final class StatusItemController {
         // 屏幕共享检测
         privacyHidden = settingsRepo.string(SettingsRepository.Keys.privacyManualHide) == "1"
         let autoEnabled = settingsRepo.string(SettingsRepository.Keys.hideOnScreenShare) != "0"
-        if autoEnabled {
-            let monitor = ScreenSharingMonitor()
-            monitor.onChange = { [weak self] sharing in
-                self?.updateTickerVisibility(autoSharing: sharing)
-            }
-            monitor.start()
-            screenSharingMonitor = monitor
-        }
+        configureScreenSharingMonitor(enabled: autoEnabled)
 
         configure()
         popoverController.onClose = { [weak self] in
@@ -123,6 +116,9 @@ final class StatusItemController {
         if let singleQuote = tickerView as? SingleQuoteTickerView {
             singleQuote.scheme = prefs.colorScheme
         }
+        let indexCapableMode = prefs.displayMode == .scroll || prefs.displayMode == .carousel
+        refresher.setTickerIndexDemand(indexCapableMode && !prefs.tickerIndexIDs.isEmpty)
+        tickerView.setLowPowerMode(ProcessInfo.processInfo.isLowPowerModeEnabled)
         updateAnimationPauseState()
         applyQuotes(refresher.quotes)
     }
@@ -166,59 +162,41 @@ final class StatusItemController {
         currentMode = mode
     }
 
-    /// 全局 + 本地 mouse-moved 监听器,用于判断鼠标是否悬停在状态栏 ticker 上。
-    private var mouseMovedMonitors: [Any] = []
-
     private func configure() {
         // 自定义 view 让系统为每个屏幕的菜单栏副本分别绘制，避免把某一块屏幕
         // 捕获到的白色位图复制到另一块屏幕的浅色/非活跃菜单栏。
-        statusItem.view = tickerHostView
+        StockBarInstallStatusItemView(statusItem, tickerHostView)
         tickerHostView.onClick = { [weak self] event in
             self?.handleStatusItemClick(event)
         }
-        startHoverTracking()
+        tickerHostView.onHoverChanged = { [weak self] hovering in
+            self?.tickerView.hovered = hovering
+        }
 
         wireUpTickerView()
         buildContextMenu()
     }
 
-    /// 用全局 + 本地 mouse-moved 监听判断鼠标是否悬停在状态栏 ticker 上,写回
-    /// tickerView.hovered(滚动 / 轮播据此暂停)。鼠标移动的全局监听不需要辅助功能权限。
-    private func startHoverTracking() {
-        let onMove: (NSEvent) -> Void = { [weak self] _ in self?.updateHoverState() }
-        if let global = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved], handler: onMove) {
-            mouseMovedMonitors.append(global)
-        }
-        if let local = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved], handler: { [weak self] event in
-            self?.updateHoverState()
-            return event
-        }) {
-            mouseMovedMonitors.append(local)
-        }
-    }
-
-    private func updateHoverState() {
-        guard let window = tickerHostView.window else { return }
-        let rectOnScreen = window.convertToScreen(tickerHostView.convert(tickerHostView.bounds, to: nil))
-        let isHovering = rectOnScreen.contains(NSEvent.mouseLocation)
-        if tickerView.hovered != isHovering {
-            tickerView.hovered = isHovering
-        }
-    }
-
     deinit {
-        mouseMovedMonitors.forEach { NSEvent.removeMonitor($0) }
         animationPauseTimer?.invalidate()
     }
 
-    /// 每几秒重新检查一次市场状态,覆盖开盘/收盘发生在两次行情刷新之间的情况。
+    /// 休市时睡到下一次开盘；活跃期间一分钟检查一次边界。
     private func startAnimationPauseTracking() {
-        animationPauseTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+        animationPauseTimer?.invalidate()
+        let interval: TimeInterval
+        if prefs.pauseWhenClosed, !clock.anyOpen(), let opening = clock.nextOpening(after: Date()) {
+            interval = max(1, opening.timeIntervalSinceNow)
+        } else {
+            interval = 60
+        }
+        animationPauseTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
             Task { @MainActor in
                 self?.updateAnimationPauseState()
+                self?.startAnimationPauseTracking()
             }
         }
-        animationPauseTimer?.tolerance = 1
+        animationPauseTimer?.tolerance = min(5, interval * 0.1)
     }
 
     /// 把当前 tickerView 接到 status item:内容或宽度变化时更新尺寸并请求重绘。
@@ -448,6 +426,29 @@ final class StatusItemController {
     }
 
     private func bind() {
+        NotificationCenter.default.publisher(for: .stockBarScreenSharingPreferenceDidChange)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notification in
+                guard let enabled = notification.object as? Bool else { return }
+                self?.configureScreenSharingMonitor(enabled: enabled)
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: .stockBarMarketScheduleDidChange)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateAnimationPauseState()
+                self?.startAnimationPauseTracking()
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: Notification.Name("NSProcessInfoPowerStateDidChangeNotification"))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.tickerView.setLowPowerMode(ProcessInfo.processInfo.isLowPowerModeEnabled)
+            }
+            .store(in: &cancellables)
+
         // 自定义 status item view 会随各菜单栏副本自行解析动态颜色；这里仍监听
         // 应用主题变化，确保设置页切换主题后当前副本立即请求重绘。
         tickerHostView.publisher(for: \.effectiveAppearance, options: [.initial, .new])
@@ -502,7 +503,7 @@ final class StatusItemController {
 
         let labelAttr: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: font.pointSize - 1, weight: .semibold),
-            .foregroundColor: NSColor.secondaryLabelColor,
+            .foregroundColor: NSColor.labelColor,
             .kern: 0.3
         ]
         func valueAttr(_ dir: TickerDirection) -> [NSAttributedString.Key: Any] {
@@ -694,6 +695,18 @@ final class StatusItemController {
         try? settingsRepo.set(SettingsRepository.Keys.privacyManualHide, privacyHidden ? "1" : "0")
         buildContextMenu()
         updateTickerVisibility(autoSharing: screenSharingMonitor?.isSharing ?? false)
+    }
+
+    private func configureScreenSharingMonitor(enabled: Bool) {
+        if screenSharingMonitor == nil {
+            let monitor = ScreenSharingMonitor()
+            monitor.onChange = { [weak self] sharing in
+                self?.updateTickerVisibility(autoSharing: sharing)
+            }
+            screenSharingMonitor = monitor
+        }
+        screenSharingMonitor?.setEnabled(enabled)
+        if !enabled { updateTickerVisibility(autoSharing: false) }
     }
 
     /// 综合手动 + 自动判断,决定 ticker 是显示还是显示为 "P •••" 占位。

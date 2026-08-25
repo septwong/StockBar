@@ -80,11 +80,11 @@ struct TickerRenderer {
     }
 
     private func summaryPiece(label: String, value: String, direction: TickerDirection) -> NSAttributedString {
-        // label 部分:小一号、次级标签色,加字距区分,避免和股票名混淆。
+        // label 部分与股票名称一样使用动态主标签色,在不同菜单栏外观下保持清晰。
         // 由于 NSAttributedString 不支持背景圆角,改用更明显的字体处理:粗体 + 字距 + 后缀冒号。
         let labelAttr: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: font.pointSize - 1, weight: .semibold),
-            .foregroundColor: NSColor.secondaryLabelColor,
+            .foregroundColor: NSColor.labelColor,
             .kern: 0.6
         ]
         let valueColor: NSColor

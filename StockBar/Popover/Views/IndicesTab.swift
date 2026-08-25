@@ -97,18 +97,22 @@ private struct IndexRow: View {
     }
 
     private func formatPrice(_ price: Decimal) -> String {
-        let fmt = NumberFormatter()
-        fmt.minimumFractionDigits = 2
-        fmt.maximumFractionDigits = 2
-        fmt.usesGroupingSeparator = true
-        return fmt.string(from: NSDecimalNumber(decimal: price)) ?? "\(price)"
+        DecimalFormatting.string(
+            price,
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+            usesGroupingSeparator: true
+        ) ?? "\(price)"
     }
 
     private func signed(_ value: Decimal) -> String {
         let sign = value >= 0 ? "+" : ""
-        let fmt = NumberFormatter()
-        fmt.minimumFractionDigits = 2
-        fmt.maximumFractionDigits = 2
-        return sign + (fmt.string(from: NSDecimalNumber(decimal: value)) ?? "\(value)")
+        let text = DecimalFormatting.string(
+            value,
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+            usesGroupingSeparator: false
+        ) ?? "\(value)"
+        return sign + text
     }
 }

@@ -38,7 +38,17 @@ final class PopoverViewModel: ObservableObject {
         self.watchlistRepo = watchlistRepo
         self.settingsRepo = settingsRepo
         reload()
-        startObserving()
+    }
+
+    func setActive(_ active: Bool) {
+        if active {
+            guard observationTasks.isEmpty else { return }
+            reload()
+            startObserving()
+        } else {
+            observationTasks.forEach { $0.cancel() }
+            observationTasks.removeAll()
+        }
     }
 
     func reload() {

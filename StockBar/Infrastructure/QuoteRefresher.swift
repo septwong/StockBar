@@ -12,16 +12,29 @@ final class QuoteRefresher: ObservableObject {
     }
 
     /// 用户在设置里改了「行情刷新间隔」时,更新这个值;runLoop 下次循环生效。
-    @Published var tickerInterval: TimeInterval = 5
+    @Published var tickerInterval: TimeInterval = 5 {
+        didSet { if oldValue != tickerInterval { rescheduleQuote() } }
+    }
     /// 是否在全市场休市时完全暂停自动刷新。用户开关,默认 true。
-    @Published var pauseWhenClosed: Bool = true
+    @Published var pauseWhenClosed: Bool = true {
+        didSet { if oldValue != pauseWhenClosed { schedulingConditionsDidChange() } }
+    }
 
-    private func interval(for pace: Pace) -> TimeInterval {
-        switch pace {
-        case .popoverOpen: return min(tickerInterval, 3)  // popover 开着至少 3s,不能更慢
-        case .tickerOnly:  return tickerInterval
-        case .sleeping:    return .infinity
-        }
+    nonisolated static func effectiveQuoteInterval(
+        userInterval: TimeInterval,
+        popoverOpen: Bool,
+        lowPowerMode: Bool
+    ) -> TimeInterval {
+        if popoverOpen { return min(userInterval, 3) }
+        return lowPowerMode ? max(userInterval, 15) : userInterval
+    }
+
+    nonisolated static func effectiveIndexInterval(popoverOpen: Bool, lowPowerMode: Bool) -> TimeInterval {
+        (!popoverOpen && lowPowerMode) ? 30 : 15
+    }
+
+    nonisolated static func shouldPersistCache(lastPersistedAt: Date?, now: Date) -> Bool {
+        lastPersistedAt.map { now.timeIntervalSince($0) >= 60 } ?? true
     }
 
     @Published private(set) var snapshot: PortfolioSnapshot = .empty
@@ -47,15 +60,21 @@ final class QuoteRefresher: ObservableObject {
     private let indexRepo: IndexRepository?
     private let settingsRepo: SettingsRepository?
     private let alertEngine: AlertEngine?
-    private var task: Task<Void, Never>?
-    private var indexTask: Task<Void, Never>?
+    private var quoteScheduleTask: Task<Void, Never>?
+    private var indexScheduleTask: Task<Void, Never>?
+    private var quoteScheduleGeneration = 0
+    private var indexScheduleGeneration = 0
+    private var started = false
     private var pace: Pace = .tickerOnly
     private var popoverOpen = false
     private var sleeping = false
     private var offline = false
+    private var lowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
+    private var tickerNeedsIndices = false
     private var isRefreshingIndices = false
     private var indexRefreshQueued = false
     private var observers: [NSObjectProtocol] = []
+    private var lastCachePersistedAt: Date?
 
     init(
         service: PortfolioService,
@@ -117,33 +136,32 @@ final class QuoteRefresher: ObservableObject {
     }
 
     func setOffline(_ value: Bool) {
+        guard offline != value else { return }
         offline = value
-        recomputePace()
+        schedulingConditionsDidChange()
     }
 
     var isOffline: Bool { offline }
 
     deinit {
         for o in observers { NotificationCenter.default.removeObserver(o) }
-        task?.cancel()
-        indexTask?.cancel()
+        quoteScheduleTask?.cancel()
+        indexScheduleTask?.cancel()
     }
 
     func start() {
-        guard task == nil else { return }
-        task = Task { [weak self] in
-            await self?.runLoop()
-        }
-        indexTask = Task { [weak self] in
-            await self?.runIndexLoop()
-        }
+        guard !started else { return }
+        started = true
+        rescheduleQuote(immediate: true)
+        rescheduleIndices(immediate: indexDemand)
     }
 
     func stop() {
-        task?.cancel()
-        task = nil
-        indexTask?.cancel()
-        indexTask = nil
+        started = false
+        quoteScheduleTask?.cancel()
+        quoteScheduleTask = nil
+        indexScheduleTask?.cancel()
+        indexScheduleTask = nil
     }
 
     /// 触发立即刷新一次(不影响调度)。
@@ -163,8 +181,23 @@ final class QuoteRefresher: ObservableObject {
     }
 
     func setPopoverOpen(_ open: Bool) {
+        guard popoverOpen != open else { return }
         popoverOpen = open
+        schedulingConditionsDidChange()
+        if open { rescheduleIndices(immediate: true) }
+    }
+
+    /// 菜单栏滚动/轮播实际勾选指数时保持指数行情；其它模式不产生后台需求。
+    func setTickerIndexDemand(_ needed: Bool) {
+        guard tickerNeedsIndices != needed else { return }
+        tickerNeedsIndices = needed
+        rescheduleIndices(immediate: needed)
+    }
+
+    func schedulingConditionsDidChange() {
         recomputePace()
+        rescheduleQuote()
+        rescheduleIndices()
     }
 
     private func observeSystem() {
@@ -175,7 +208,7 @@ final class QuoteRefresher: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor in
                 self?.sleeping = true
-                self?.recomputePace()
+                self?.schedulingConditionsDidChange()
             }
         })
         observers.append(nc.addObserver(
@@ -184,7 +217,18 @@ final class QuoteRefresher: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor in
                 self?.sleeping = false
-                self?.recomputePace()
+                self?.schedulingConditionsDidChange()
+            }
+        })
+        observers.append(NotificationCenter.default.addObserver(
+            forName: Notification.Name("NSProcessInfoPowerStateDidChangeNotification"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.lowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
+                self.schedulingConditionsDidChange()
             }
         })
     }
@@ -204,31 +248,89 @@ final class QuoteRefresher: ObservableObject {
         pace = next
     }
 
-    private func runLoop() async {
-        await tick()
-        while !Task.isCancelled {
-            recomputePace()
-            let nextInterval = await MainActor.run { self.interval(for: self.pace) }
-            if nextInterval.isInfinite {
-                // .sleeping:每 5s 轮询一次 pace,等市场开 / 用户开 popover 时立刻醒
-                try? await Task.sleep(nanoseconds: 5_000_000_000)
-                continue
+    private var indexDemand: Bool { popoverOpen || tickerNeedsIndices }
+
+    private func automaticDelay(baseInterval: TimeInterval) -> TimeInterval? {
+        guard !sleeping, !offline else { return nil }
+        if pauseWhenClosed, !clock.anyOpen() {
+            return clock.nextOpening(after: Date()).map { max(0.1, $0.timeIntervalSinceNow) }
+        }
+        return baseInterval
+    }
+
+    private func rescheduleQuote(immediate: Bool = false) {
+        guard started else { return }
+        quoteScheduleGeneration += 1
+        let generation = quoteScheduleGeneration
+        quoteScheduleTask?.cancel()
+        recomputePace()
+        let base: TimeInterval
+        switch pace {
+        case .popoverOpen:
+            base = Self.effectiveQuoteInterval(
+                userInterval: tickerInterval,
+                popoverOpen: true,
+                lowPowerMode: lowPowerMode
+            )
+        case .tickerOnly:
+            base = Self.effectiveQuoteInterval(
+                userInterval: tickerInterval,
+                popoverOpen: false,
+                lowPowerMode: lowPowerMode
+            )
+        case .sleeping:
+            guard !sleeping, !offline,
+                  let opening = clock.nextOpening(after: Date()) else {
+                quoteScheduleTask = nil
+                return
             }
-            try? await Task.sleep(nanoseconds: UInt64(nextInterval * 1_000_000_000))
-            if Task.isCancelled { break }
-            await tick()
+            base = max(0.1, opening.timeIntervalSinceNow)
+        }
+        let delay = immediate ? 0 : base
+        quoteScheduleTask = schedule(after: delay) { [weak self] in
+            guard let self, generation == self.quoteScheduleGeneration else { return }
+            self.quoteScheduleTask = nil
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.tick()
+                if generation == self.quoteScheduleGeneration { self.rescheduleQuote() }
+            }
         }
     }
 
-    /// 指数轮询:跑独立 Task,间隔比股票长(15s),休眠/离线/全市场休市时暂停。
-    private func runIndexLoop() async {
-        await tickIndices()
-        while !Task.isCancelled {
-            try? await Task.sleep(nanoseconds: 15_000_000_000)
-            if Task.isCancelled { break }
-            if sleeping || offline { continue }
-            if !clock.anyOpen() && pauseWhenClosed { continue }
-            await tickIndices()
+    private func rescheduleIndices(immediate: Bool = false) {
+        guard started else { return }
+        indexScheduleGeneration += 1
+        let generation = indexScheduleGeneration
+        indexScheduleTask?.cancel()
+        guard indexDemand else {
+            indexScheduleTask = nil
+            return
+        }
+        let interval = Self.effectiveIndexInterval(popoverOpen: popoverOpen, lowPowerMode: lowPowerMode)
+        guard let automatic = automaticDelay(baseInterval: interval) else {
+            indexScheduleTask = nil
+            return
+        }
+        let delay = immediate ? 0 : automatic
+        indexScheduleTask = schedule(after: delay) { [weak self] in
+            guard let self, generation == self.indexScheduleGeneration else { return }
+            self.indexScheduleTask = nil
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.tickIndices()
+                if generation == self.indexScheduleGeneration { self.rescheduleIndices() }
+            }
+        }
+    }
+
+    private func schedule(after delay: TimeInterval, action: @escaping @MainActor () -> Void) -> Task<Void, Never> {
+        Task { @MainActor in
+            if delay > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(min(delay, TimeInterval(UInt64.max) / 1_000_000_000) * 1_000_000_000))
+            }
+            guard !Task.isCancelled else { return }
+            action()
         }
     }
 
@@ -291,9 +393,11 @@ final class QuoteRefresher: ObservableObject {
                 lastError = nil
                 alertEngine?.evaluate(quotes: quotes)
             }
-            // 拉到了就异步写盘,下次冷启动可以秒读
-            if hasFreshData {
+            // 首次成功立即写盘，之后最多每分钟一次，避免高频 SQLite/WAL 唤醒。
+            let now = Date()
+            if hasFreshData, Self.shouldPersistCache(lastPersistedAt: lastCachePersistedAt, now: now) {
                 quoteCacheRepo?.upsertMany(snap.allQuotes)
+                lastCachePersistedAt = now
             }
         } catch {
             lastError = String(describing: error)

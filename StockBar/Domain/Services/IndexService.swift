@@ -26,7 +26,7 @@ actor IndexService {
                     result[quote.id] = quote
                 }
                 remaining.removeAll { result[$0.id] != nil }
-                Log.quote.info("index provider=\(provider.id, privacy: .public) ok items=\(quotes.count, privacy: .public) remaining=\(remaining.count, privacy: .public)")
+                Log.quote.debug("index provider=\(provider.id, privacy: .public) ok items=\(quotes.count, privacy: .public) remaining=\(remaining.count, privacy: .public)")
             } catch {
                 firstError = firstError ?? error
                 Log.quote.warning("index provider=\(provider.id, privacy: .public) failed: \(String(describing: error), privacy: .public)")

@@ -138,7 +138,9 @@ private struct MarketRow: View {
                 .onChange(of: override) { v in
                     persistOverride(v)
                     // 改完让 refresher 重算 pace,休市/开盘状态立即生效
+                    container.refresher.schedulingConditionsDidChange()
                     container.refresher.refreshNow()
+                    NotificationCenter.default.post(name: .stockBarMarketScheduleDidChange, object: nil)
                 }
                 Spacer()
             }
@@ -150,10 +152,10 @@ private struct MarketRow: View {
     }
 
     private var localTimeLabel: String {
-        let f = DateFormatter()
-        f.timeZone = market.timeZone
-        f.dateFormat = "HH:mm"
-        let timeStr = f.string(from: statusTick)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = market.timeZone
+        let parts = calendar.dateComponents([.hour, .minute], from: statusTick)
+        let timeStr = String(format: "%02d:%02d", parts.hour ?? 0, parts.minute ?? 0)
         let tz = market.timeZone.abbreviation(for: statusTick) ?? market.timeZone.identifier
         return "\(timeStr) \(tz)"
     }

@@ -105,12 +105,10 @@ struct Alert: Equatable, Codable, Sendable, Identifiable {
 
     /// 指定时刻在市场本地时区的日期键。
     static func todayKey(at date: Date = Date(), in tz: TimeZone) -> String {
-        let fmt = DateFormatter()
-        fmt.locale = Locale(identifier: "en_US_POSIX")
-        fmt.calendar = Calendar(identifier: .gregorian)
-        fmt.dateFormat = "yyyy-MM-dd"
-        fmt.timeZone = tz
-        return fmt.string(from: date)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = tz
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
     }
 
     func todayKey(at date: Date = Date()) -> String {

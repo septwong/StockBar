@@ -18,6 +18,7 @@ protocol MenuBarTickerView: NSView {
     var onContentChanged: (() -> Void)? { get set }
     /// 暂停动画(全市场休市 / 用户开关)
     func setPaused(_ paused: Bool)
+    func setLowPowerMode(_ enabled: Bool)
     /// view 被替换前停止内部动画源,避免旧 display link 的异步回调撞到新模式。
     func invalidateAnimation()
 }
@@ -30,6 +31,8 @@ protocol MenuBarTickerView: NSView {
 final class StatusItemTickerHostView: NSView {
     private(set) var tickerView: MenuBarTickerView
     var onClick: ((NSEvent) -> Void)?
+    var onHoverChanged: ((Bool) -> Void)?
+    private var hoverTrackingArea: NSTrackingArea?
 
     init(tickerView: MenuBarTickerView) {
         self.tickerView = tickerView
@@ -64,6 +67,22 @@ final class StatusItemTickerHostView: NSView {
         tickerView.frame = bounds
     }
 
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverTrackingArea { removeTrackingArea(hoverTrackingArea) }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        hoverTrackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) { onHoverChanged?(true) }
+    override func mouseExited(with event: NSEvent) { onHoverChanged?(false) }
+
     /// 子视图只负责绘制，点击统一由宿主交给 controller 处理。
     override func hitTest(_ point: NSPoint) -> NSView? {
         bounds.contains(point) ? self : nil
@@ -83,10 +102,12 @@ extension CarouselTickerView: MenuBarTickerView {}
 
 extension CompactTickerView: MenuBarTickerView {
     func setPaused(_ paused: Bool) {}   // 无动画
+    func setLowPowerMode(_ enabled: Bool) {}
     func invalidateAnimation() {}
 }
 
 extension MinimalTickerView: MenuBarTickerView {
     func setPaused(_ paused: Bool) {}   // 无动画
+    func setLowPowerMode(_ enabled: Bool) {}
     func invalidateAnimation() {}
 }

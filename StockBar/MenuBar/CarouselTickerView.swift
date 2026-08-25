@@ -15,9 +15,12 @@ final class CarouselTickerView: NSView {
     private var lastSwitch: CFTimeInterval = 0
     /// 是否因用户设置的“全部市场休市时暂停菜单栏动画”而暂停。
     private var paused: Bool = false
-    private var displayLink: CVDisplayLink?
+    private lazy var animationDriver = TickerAnimationDriver(view: self) { [weak self] timestamp in
+        self?.step(now: timestamp)
+    }
+    var isAnimationRunning: Bool { animationDriver.isRunning }
     /// 由 controller 同步过来的 hover 状态
-    var hovered: Bool = false
+    var hovered: Bool = false { didSet { updateAnimationActivity(resetDwell: true) } }
     var pauseOnHover: Bool = true
     /// 内容或宽度变化后通知 controller 更新 status item 尺寸。
     var onContentChanged: (() -> Void)?
@@ -26,7 +29,7 @@ final class CarouselTickerView: NSView {
     var preferredTotalWidth: CGFloat?
     var showsIcon: Bool = true
     var visibleTextWidth: CGFloat = 200
-    var privacyHidden: Bool = false
+    var privacyHidden: Bool = false { didSet { updateAnimationActivity() } }
     /// 没有任何可见内容时仍保留一点点击区域,但不显示占位文字。
     private let emptyHitTargetWidth: CGFloat = 24
 
@@ -61,11 +64,6 @@ final class CarouselTickerView: NSView {
         wantsLayer = true
         layer?.backgroundColor = .clear
         // 作为 status item 自定义 view 绘制，动态颜色由当前菜单栏副本解析。
-        startAnimation()
-    }
-
-    deinit {
-        stopAnimation()
     }
 
     func update(items: [NSAttributedString]) {
@@ -79,33 +77,14 @@ final class CarouselTickerView: NSView {
         }
         needsDisplay = true
         onContentChanged?()
-    }
-
-    private func startAnimation() {
-        var dl: CVDisplayLink?
-        CVDisplayLinkCreateWithActiveCGDisplays(&dl)
-        guard let dl = dl else { return }
-        displayLink = dl
-        let opaqueSelf = Unmanaged.passUnretained(self).toOpaque()
-        CVDisplayLinkSetOutputCallback(dl, { _, inNow, _, _, _, ctx in
-            guard let ctx = ctx else { return kCVReturnSuccess }
-            let view = Unmanaged<CarouselTickerView>.fromOpaque(ctx).takeUnretainedValue()
-            let now = inNow.pointee
-            let t = CFTimeInterval(now.hostTime) / CFTimeInterval(CVGetHostClockFrequency())
-            DispatchQueue.main.async { view.step(now: t) }
-            return kCVReturnSuccess
-        }, opaqueSelf)
-        CVDisplayLinkStart(dl)
-    }
-
-    private func stopAnimation() {
-        if let dl = displayLink { CVDisplayLinkStop(dl) }
-        displayLink = nil
+        updateAnimationActivity(resetDwell: true)
     }
 
     func invalidateAnimation() {
-        stopAnimation()
+        animationDriver.stop()
     }
+
+    func setLowPowerMode(_ enabled: Bool) { animationDriver.setLowPowerMode(enabled) }
 
     /// 暂停时冻结当前条目，并在恢复后重新开始停留计时，避免休市期间累积的时间
     /// 让轮播一恢复就立即跳到下一条。
@@ -119,6 +98,22 @@ final class CarouselTickerView: NSView {
             transitionStart = 0
             needsDisplay = true
         }
+        updateAnimationActivity(resetDwell: true)
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateAnimationActivity(resetDwell: true)
+    }
+
+    private func updateAnimationActivity(resetDwell: Bool = false) {
+        let shouldRun = window != nil
+            && items.count > 1
+            && !paused
+            && !(pauseOnHover && hovered)
+            && !privacyHidden
+        if resetDwell { lastSwitch = 0 }
+        if shouldRun { animationDriver.start() } else { animationDriver.stop() }
     }
 
     private func step(now: CFTimeInterval) {

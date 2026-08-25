@@ -11,7 +11,7 @@ final class SettingsNavigation: ObservableObject {
 }
 
 @MainActor
-final class SettingsWindowController {
+final class SettingsWindowController: NSObject, NSWindowDelegate {
     static let shared = SettingsWindowController()
 
     let navigation = SettingsNavigation()
@@ -42,7 +42,7 @@ final class SettingsWindowController {
         set { shared.navigation.pendingAction = newValue }
     }
 
-    private init() {}
+    private override init() { super.init() }
 
     func show(initialAction: PendingAction? = nil) {
         navigation.pendingAction = initialAction
@@ -90,9 +90,16 @@ final class SettingsWindowController {
         w.minSize = NSSize(width: 600, height: 480)
         w.center()
         w.isReleasedWhenClosed = false
+        w.delegate = self
         w.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         window = w
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        guard notification.object as? NSWindow === window else { return }
+        window?.contentViewController = nil
+        window = nil
     }
 }
 

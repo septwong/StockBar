@@ -158,5 +158,6 @@ final class SingleQuoteTickerView: NSView {
 
 extension SingleQuoteTickerView: MenuBarTickerView {
     func setPaused(_ paused: Bool) {}
+    func setLowPowerMode(_ enabled: Bool) {}
     func invalidateAnimation() {}
 }
