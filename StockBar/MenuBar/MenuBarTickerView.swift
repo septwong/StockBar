@@ -13,7 +13,8 @@ protocol MenuBarTickerView: NSView {
     var showsIcon: Bool { get set }
     /// 鼠标 hover 状态;由 controller 监听鼠标位置同步过来
     var hovered: Bool { get set }
-    /// 内容变化通知(动画帧 / 数据更新),controller 更新 status item 的尺寸。
+    /// 内容或宽度变化通知，controller 据此更新 status item 的尺寸。
+    /// 动画帧只需由 view 自身请求重绘，不应走这条布局路径。
     var onContentChanged: (() -> Void)? { get set }
     /// 暂停动画(全市场休市 / 用户开关)
     func setPaused(_ paused: Bool)
@@ -23,9 +24,9 @@ protocol MenuBarTickerView: NSView {
 
 /// status item 的宿主视图。
 ///
-/// `NSStatusItem.view` 已被 AppKit 标记为 deprecated，但它仍是 macOS 提供的
-/// 唯一能让同一个自绘内容按每个菜单栏副本分别绘制的 API。这里用一个宿主转发
-/// 点击事件，并让 ticker 作为普通子视图参与 status bar 的多屏绘制。
+/// `NSStatusItem.view` 已被 AppKit 标记为 deprecated。这里有意把兼容性用法隔离
+/// 在一个宿主中：标准 button + 位图路径会把单屏解析后的颜色复制到其他菜单栏，
+/// 而自定义 view 可让 ticker 按各菜单栏副本的外观实时绘制。宿主同时负责转发点击。
 final class StatusItemTickerHostView: NSView {
     private(set) var tickerView: MenuBarTickerView
     var onClick: ((NSEvent) -> Void)?

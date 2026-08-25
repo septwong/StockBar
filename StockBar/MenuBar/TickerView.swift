@@ -10,10 +10,10 @@ final class TickerView: NSView {
     var pixelsPerSecond: CGFloat = 30
     /// 是否在 hover 时暂停。
     var pauseOnHover: Bool = true
-    /// 由 controller 同步过来的 hover 状态(view 不在 window 里,自己监听不到)
+    /// 由 controller 同步过来的 hover 状态。
     var hovered: Bool = false
     private var paused: Bool = false
-    /// 动画帧或数据更新后,通知 controller 重新捕图。
+    /// 内容或宽度变化后通知 controller 更新 status item 尺寸。
     var onContentChanged: (() -> Void)?
     private var displayLink: CVDisplayLink?
     private var lastTimestamp: CFTimeInterval = 0
@@ -142,7 +142,6 @@ final class TickerView: NSView {
         let cycle = attributedWidth + loopGap
         if offset > cycle { offset -= cycle }
         needsDisplay = true
-        onContentChanged?()
     }
 
     // MARK: draw

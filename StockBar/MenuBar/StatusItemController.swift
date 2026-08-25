@@ -221,7 +221,8 @@ final class StatusItemController {
         animationPauseTimer?.tolerance = 1
     }
 
-    /// 把当前 tickerView 接到 status item:内容变化时更新尺寸并请求重绘。
+    /// 把当前 tickerView 接到 status item:内容或宽度变化时更新尺寸并请求重绘。
+    /// 动画帧由实时 view 自己标记 needsDisplay，不再触发 status item 布局。
     /// 不再缓存 NSImage，因此每个屏幕上的 status item 副本都能用自己的菜单栏外观
     /// 解析动态颜色。
     private func wireUpTickerView() {

@@ -19,7 +19,7 @@ final class CarouselTickerView: NSView {
     /// 由 controller 同步过来的 hover 状态
     var hovered: Bool = false
     var pauseOnHover: Bool = true
-    /// 动画帧或数据更新后通知 controller 重新捕图
+    /// 内容或宽度变化后通知 controller 更新 status item 尺寸。
     var onContentChanged: (() -> Void)?
 
     let iconWidth: CGFloat = 18
@@ -118,7 +118,6 @@ final class CarouselTickerView: NSView {
             transition = 1
             transitionStart = 0
             needsDisplay = true
-            onContentChanged?()
         }
     }
 
@@ -133,7 +132,6 @@ final class CarouselTickerView: NSView {
             let p = min(1, (now - transitionStart) / transitionDuration)
             transition = CGFloat(easeOut(p))
             needsDisplay = true
-            onContentChanged?()
             return
         }
 
@@ -143,7 +141,6 @@ final class CarouselTickerView: NSView {
             transition = 0
             lastSwitch = now
             needsDisplay = true
-            onContentChanged?()
         }
     }
 
