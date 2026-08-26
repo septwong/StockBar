@@ -35,6 +35,14 @@ final class CoreMigrationTests: XCTestCase {
         XCTAssertTrue(tables.contains("alert"))
         XCTAssertTrue(tables.contains("quoteCache"))
         XCTAssertTrue(tables.contains("indexItem"))
+        XCTAssertTrue(tables.contains("portfolioTransaction"))
+
+        let transactionColumns = try database.dbPool.read { db in
+            try Row.fetchAll(db, sql: "PRAGMA table_info(portfolioTransaction)")
+                .compactMap { $0["name"] as String? }
+        }
+        XCTAssertTrue(transactionColumns.contains("feeStatus"))
+        XCTAssertTrue(transactionColumns.contains("feeUpdatedAt"))
     }
 
     func testRepositoriesRoundTripAndReorder() throws {

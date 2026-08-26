@@ -121,6 +121,70 @@ enum Migrations {
             try IndexRepository.seedDefaults(in: db)
         }
 
+        // Portfolio operations are kept separately from the materialized
+        // holding row so buys/sells can preserve realized P&L and history.
+        migrator.registerMigration("v8_portfolio_transactions") { db in
+            try db.create(table: "portfolioTransaction") { t in
+                t.column("id", .text).primaryKey()
+                t.column("holdingID", .text).notNull()
+                t.column("code", .text).notNull()
+                t.column("market", .text).notNull()
+                t.column("name", .text).notNull().defaults(to: "")
+                t.column("type", .text).notNull()
+                t.column("quantity", .text).notNull()
+                t.column("price", .text).notNull()
+                t.column("fee", .text).notNull().defaults(to: "0")
+                t.column("currency", .text).notNull()
+                t.column("occurredAt", .datetime).notNull()
+                t.column("recordedAt", .datetime).notNull()
+                t.column("note", .text)
+            }
+            try db.create(
+                index: "portfolioTransaction_holding_time",
+                on: "portfolioTransaction",
+                columns: ["holdingID", "occurredAt", "recordedAt"]
+            )
+
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT id, code, market, name, quantity, costPrice, currency, note, createdAt
+                FROM holding
+                """)
+            for row in rows {
+                let holdingID: String = row["id"]
+                let createdAt: Date = row["createdAt"]
+                try db.execute(
+                    sql: """
+                    INSERT INTO portfolioTransaction
+                    (id, holdingID, code, market, name, type, quantity, price, fee,
+                     currency, occurredAt, recordedAt, note)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    arguments: [
+                        UUID().uuidString,
+                        holdingID,
+                        row["code"] as String,
+                        row["market"] as String,
+                        row["name"] as String,
+                        PortfolioTransactionType.openingBalance.rawValue,
+                        row["quantity"] as String,
+                        row["costPrice"] as String,
+                        "0",
+                        row["currency"] as String,
+                        createdAt,
+                        createdAt,
+                        row["note"] as String?
+                    ]
+                )
+            }
+        }
+
+        migrator.registerMigration("v9_transaction_fee_settlement") { db in
+            try db.alter(table: "portfolioTransaction") { t in
+                t.add(column: "feeStatus", .text).notNull().defaults(to: PortfolioTransactionFeeStatus.confirmed.rawValue)
+                t.add(column: "feeUpdatedAt", .datetime)
+            }
+        }
+
         try migrator.migrate(dbPool)
     }
 }

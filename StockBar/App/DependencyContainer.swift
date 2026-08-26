@@ -7,6 +7,7 @@ final class DependencyContainer {
 
     let database: Database
     let holdingsRepo: HoldingsRepository
+    let transactionsRepo: PortfolioTransactionsRepository
     let watchlistRepo: WatchlistRepository
     let indexRepo: IndexRepository
     let settingsRepo: SettingsRepository
@@ -20,6 +21,7 @@ final class DependencyContainer {
     let symbolSearch: SymbolSearch
     let fx: FXService
     let portfolioService: PortfolioService
+    let portfolioOperations: PortfolioOperationService
     let clock: MarketClock
     let alertEngine: AlertEngine
     let refresher: QuoteRefresher
@@ -33,6 +35,7 @@ final class DependencyContainer {
         let database = try Database(path: dbPath)
         self.database = database
         self.holdingsRepo = HoldingsRepository(dbPool: database.dbPool)
+        self.transactionsRepo = PortfolioTransactionsRepository(dbPool: database.dbPool)
         self.watchlistRepo = WatchlistRepository(dbPool: database.dbPool)
         self.indexRepo = IndexRepository(dbPool: database.dbPool)
         self.settingsRepo = SettingsRepository(dbPool: database.dbPool)
@@ -77,10 +80,12 @@ final class DependencyContainer {
         ])
         let fx = FXService(provider: fxProvider, cacheRepo: fxCacheRepo)
         self.fx = fx
+        self.portfolioOperations = PortfolioOperationService(dbPool: database.dbPool)
 
         self.clock = MarketClock(settingsRepo: settingsRepo)
         self.portfolioService = PortfolioService(
             holdingsRepo: holdingsRepo,
+            transactionsRepo: transactionsRepo,
             watchlistRepo: watchlistRepo,
             settingsRepo: settingsRepo,
             provider: orchestrator,
@@ -94,6 +99,7 @@ final class DependencyContainer {
             quoteCacheRepo: quoteCacheRepo,
             fxCacheRepo: fxCacheRepo,
             holdingsRepo: holdingsRepo,
+            transactionsRepo: transactionsRepo,
             indexRepo: indexRepo,
             settingsRepo: settingsRepo,
             alertEngine: alertEngine

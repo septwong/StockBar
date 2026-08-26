@@ -272,7 +272,7 @@ private struct TickerPaneContent: View {
             set: { newValue in
                 var copy = holding
                 copy.inTicker = newValue
-                try? container.holdingsRepo.upsert(copy)
+                try? container.holdingsRepo.updateMetadata(from: copy)
                 reload()
                 container.refresher.refreshNow()
             }

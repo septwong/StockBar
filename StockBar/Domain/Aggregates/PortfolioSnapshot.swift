@@ -6,23 +6,35 @@ struct HoldingPosition: Identifiable, Equatable, Sendable {
     let quote: Quote?
     /// Current market value in the holding's native currency.
     let marketValue: Decimal
-    /// P&L (current - cost) in native currency.
+    /// Unrealized P&L for the remaining shares in native currency.
+    let unrealizedPnL: Decimal
+    /// Realized P&L from completed sells/clears in native currency.
+    let realizedPnL: Decimal
+    /// Cumulative P&L = realized + unrealized in native currency.
     let pnl: Decimal
-    /// P&L percent (e.g. 0.12 = +12%).
+    /// Cumulative P&L percent against the broker-style adjusted cost base.
     let pnlPct: Double
-    /// Today's P&L in native currency. A holding created today uses its cost
-    /// price as the baseline; older holdings use the quote's previous close.
+    /// Dynamic cost price used by broker-style portfolio displays.
+    /// `holding.costPrice` remains the true weighted-average acquisition cost.
+    let adjustedCostPrice: Decimal
+    /// Today's P&L including same-day buys and sells, excluding transaction fees.
     let todayPnL: Decimal
     /// Market value converted to base currency (nil if FX unavailable).
     let baseMarketValue: Decimal?
     let baseTodayPnL: Decimal?
     let basePnL: Decimal?
+    let baseUnrealizedPnL: Decimal?
 }
 
 struct PortfolioSnapshot: Equatable, Sendable {
     let baseCurrency: Currency
     let totalAssets: Decimal      // sum of baseMarketValue
-    let totalCost: Decimal        // sum of cost in base currency
+    let totalCost: Decimal        // remaining cost in base currency
+    let historicalCostBase: Decimal
+    /// Sum of adjusted costs for active positions. Used for the cumulative
+    /// return percentage; historicalCostBase remains the fallback after all
+    /// positions have been closed.
+    let adjustedCostBase: Decimal
     let todayPnL: Decimal
     let todayPnLPct: Double
     let allTimePnL: Decimal
@@ -36,6 +48,8 @@ struct PortfolioSnapshot: Equatable, Sendable {
         baseCurrency: .cny,
         totalAssets: 0,
         totalCost: 0,
+        historicalCostBase: 0,
+        adjustedCostBase: 0,
         todayPnL: 0,
         todayPnLPct: 0,
         allTimePnL: 0,

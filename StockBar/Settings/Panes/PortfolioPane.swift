@@ -20,7 +20,7 @@ private struct PortfolioColumnWidths {
         drag = compact ? 16 : 18
         symbol = compact ? 58 : 62
         market = compact ? 30 : 34
-        actions = 44
+        actions = compact ? 64 : 68
         createdAt = compact ? 108 : 132
 
         let quantityBase: CGFloat = compact ? 44 : 48
@@ -67,9 +67,10 @@ private struct PortfolioColumnWidths {
 struct PortfolioPane: View {
     @Environment(\.container) private var container
     @State private var holdings: [Holding] = []
-    @State private var showAdd: Bool = false
     @State private var editing: Holding?
     @State private var deleting: Holding?
+    @State private var tradeRequest: PortfolioTradeSheetRequest?
+    @State private var showHistory = false
     @State private var selectedID: UUID?
     @State private var dropTargetID: UUID?    // 当前正在被拖入的行 id,用于画 drop indicator
 
@@ -86,8 +87,11 @@ struct PortfolioPane: View {
                     Label(L("action.exportCSV", comment: ""), systemImage: "square.and.arrow.up")
                 }
                 .disabled(holdings.isEmpty)
-                Button(action: { showAdd = true }) {
-                    Label(L("action.add", comment: ""), systemImage: "plus")
+                Button(action: { tradeRequest = PortfolioTradeSheetRequest(mode: .buy) }) {
+                    Label(L("action.buy", comment: ""), systemImage: "plus")
+                }
+                Button(action: { showHistory = true }) {
+                    Label(L("action.history", comment: ""), systemImage: "clock.arrow.circlepath")
                 }
             }
 
@@ -106,7 +110,7 @@ struct PortfolioPane: View {
             switch SettingsWindowController.pendingAction {
             case .addHolding:
                 SettingsWindowController.pendingAction = nil
-                showAdd = true
+                tradeRequest = PortfolioTradeSheetRequest(mode: .buy)
             case .editHolding(let id):
                 SettingsWindowController.pendingAction = nil
                 if let h = holdings.first(where: { $0.id == id }) {
@@ -116,12 +120,12 @@ struct PortfolioPane: View {
                 break
             }
         }
-        .sheet(isPresented: $showAdd) {
-            HoldingEditorSheet(initial: nil, onSaved: {
-                showAdd = false
+        .sheet(item: $tradeRequest) { request in
+            PortfolioTradeEditorSheet(request: request, onSaved: {
+                tradeRequest = nil
                 reload()
                 container?.refresher.refreshNow()
-            }, onCancel: { showAdd = false })
+            }, onCancel: { tradeRequest = nil })
         }
         .sheet(item: $editing) { existing in
             HoldingEditorSheet(initial: existing, onSaved: {
@@ -130,6 +134,11 @@ struct PortfolioPane: View {
                 container?.refresher.refreshNow()
             }, onCancel: { editing = nil })
         }
+        .sheet(isPresented: $showHistory) {
+            PortfolioHistorySheet(holding: nil, onCancel: {
+                showHistory = false
+            })
+        }
         .alert(
             String(format: L("delete.confirm.title", comment: ""), deleting?.name ?? ""),
             isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })
@@ -137,7 +146,7 @@ struct PortfolioPane: View {
             Button(L("action.cancel", comment: ""), role: .cancel) { deleting = nil }
             Button(L("action.delete", comment: ""), role: .destructive) {
                 if let h = deleting {
-                    try? container?.holdingsRepo.delete(id: h.id)
+                    try? container?.portfolioOperations.deleteHoldingAndHistory(id: h.id)
                     reload()
                     container?.refresher.refreshNow()
                 }
@@ -150,6 +159,18 @@ struct PortfolioPane: View {
 
     private func reload() {
         holdings = (try? container?.holdingsRepo.all()) ?? []
+    }
+
+    /// 设置页沿用券商式“动态成本”展示,但不改写 Holding 中用于账本
+    /// 和后续交易的真实加权平均成本。
+    private func adjustedCostPrice(for holding: Holding) -> Decimal {
+        guard let container,
+              let transactions = try? container.transactionsRepo.all(for: holding.id),
+              let summary = try? PortfolioLedger.replay(transactions),
+              summary.quantity > 0 else {
+            return holding.costPrice
+        }
+        return summary.adjustedCostPrice
     }
 
     /// 之前用 SwiftUI List + .onMove + selection 在 macOS 反复踩 bug(选中不高亮、
@@ -204,6 +225,7 @@ struct PortfolioPane: View {
     private func holdingRow(_ h: Holding, index: Int, isAlternate: Bool, columns: PortfolioColumnWidths) -> some View {
         let isSelected = selectedID == h.id
         let isDropTarget = dropTargetID == h.id
+        let displayCostPrice = adjustedCostPrice(for: h)
 
         HStack(spacing: columns.spacing) {
             Image(systemName: "line.3.horizontal")
@@ -229,7 +251,7 @@ struct PortfolioPane: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .frame(width: columns.quantity, alignment: .center)
-            Text(h.currency.format(h.costPrice, fractionDigits: 3))
+            Text(h.currency.format(displayCostPrice, fractionDigits: 3))
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -243,9 +265,33 @@ struct PortfolioPane: View {
             HStack(spacing: 4) {
                 Button { editing = h } label: {
                     Image(systemName: "pencil")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.secondary)
                 }
                 .buttonStyle(.borderless)
                 .help(L("action.edit", comment: ""))
+                Menu {
+                    PortfolioHoldingActionItems(
+                        includeOpenInBrowser: false,
+                        onTrade: { mode in
+                            tradeRequest = PortfolioTradeSheetRequest(mode: mode, holding: h)
+                        },
+                        onHistory: {
+                            tradeRequest = nil
+                            showHistory = true
+                        },
+                        onEdit: { editing = h },
+                        onOpenInBrowser: { }
+                    )
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.secondary)
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .tint(.secondary)
+                .help(L("action.more", comment: ""))
                 Button(role: .destructive) {
                     deleting = h
                 } label: {
@@ -282,6 +328,20 @@ struct PortfolioPane: View {
             handleDrop(droppedIDs: droppedIDs, ontoIndex: index)
         } isTargeted: { hovering in
             dropTargetID = hovering ? h.id : (dropTargetID == h.id ? nil : dropTargetID)
+        }
+        .contextMenu {
+            PortfolioHoldingActionItems(
+                includeOpenInBrowser: false,
+                onTrade: { mode in
+                    tradeRequest = PortfolioTradeSheetRequest(mode: mode, holding: h)
+                },
+                onHistory: {
+                    tradeRequest = nil
+                    showHistory = true
+                },
+                onEdit: { editing = h },
+                onOpenInBrowser: { }
+            )
         }
     }
 
@@ -338,7 +398,7 @@ struct PortfolioPane: View {
             guard let text = text else { return }
             let imported = CSVPortfolioIO.importHoldings(text)
             for h in imported {
-                try? container?.holdingsRepo.upsert(h)
+                _ = try? container?.portfolioOperations.recordImportedHolding(h)
             }
             reload()
             container?.refresher.refreshNow()
@@ -348,47 +408,41 @@ struct PortfolioPane: View {
 
 private struct HoldingEditorSheet: View {
     @Environment(\.container) private var container
-    let initial: Holding?
+    let initial: Holding
     var onSaved: () -> Void
     var onCancel: () -> Void
 
-    @State private var market: Market = .a
-    @State private var code: String = ""
-    @State private var name: String = ""
-    @State private var quantity: String = ""
-    @State private var costPrice: String = ""
+    @State private var name = ""
+    @State private var note = ""
+    @State private var inTicker = true
     @State private var error: String?
-
-    @StateObject private var searchVM = SymbolSearchViewModel()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(initial == nil ? L("holdings.addTitle", comment: "") : L("holdings.editTitle", comment: ""))
+            Text(L("holdings.editTitle", comment: ""))
                 .font(.title3)
 
-            SymbolSearchField(vm: searchVM, onPick: { result in
-                market = result.symbol.market
-                code = result.symbol.code
-                name = result.name
-            })
-
             Form {
-                Picker(L("col.market", comment: ""), selection: $market) {
-                    ForEach(Market.allCases, id: \.self) { m in
-                        Text(m.displayName).tag(m)
-                    }
+                LabeledContent(L("col.symbol", comment: "")) {
+                    Text(displayCode(initial.symbol)).monospacedDigit()
                 }
-                TextField(L("col.symbol", comment: ""), text: $code)
-                    .textFieldStyle(.roundedBorder)
+                LabeledContent(L("col.market", comment: "")) {
+                    Text(initial.symbol.market.displayName)
+                }
+                LabeledContent(L("col.qty", comment: "")) {
+                    Text(decimalText(initial.quantity)).monospacedDigit()
+                }
+                LabeledContent(L("col.cost", comment: "")) {
+                    Text(initial.currency.format(displayCostPrice, fractionDigits: 3)).monospacedDigit()
+                }
                 TextField(L("col.name", comment: ""), text: $name)
                     .textFieldStyle(.roundedBorder)
-                TextField(L("col.qty", comment: ""), text: $quantity)
+                TextField(L("holding.note", comment: ""), text: $note)
                     .textFieldStyle(.roundedBorder)
-                TextField(L("col.cost", comment: ""), text: $costPrice)
-                    .textFieldStyle(.roundedBorder)
+                Toggle(L("holding.inTicker", comment: ""), isOn: $inTicker)
             }
 
-            if let error = error {
+            if let error {
                 Text(error).foregroundColor(.red).font(.caption)
             }
 
@@ -401,51 +455,50 @@ private struct HoldingEditorSheet: View {
         }
         .padding(24)
         .frame(width: 460)
-        .onAppear {
-            prefill()
-            searchVM.bind(container?.symbolSearch)
-        }
+        .onAppear(perform: prefill)
     }
 
     private func prefill() {
-        guard let h = initial else { return }
-        market = h.symbol.market
-        code = h.symbol.code
-        name = h.name
-        quantity = "\(h.quantity)"
-        costPrice = "\(h.costPrice)"
+        name = initial.name
+        note = initial.note ?? ""
+        inTicker = initial.inTicker
+    }
+
+    private var displayCostPrice: Decimal {
+        guard let container,
+              let transactions = try? container.transactionsRepo.all(for: initial.id),
+              let summary = try? PortfolioLedger.replay(transactions),
+              summary.quantity > 0 else {
+            return initial.costPrice
+        }
+        return summary.adjustedCostPrice
     }
 
     private func save() {
-        guard !code.isEmpty else { error = L("error.codeRequired", comment: ""); return }
-        guard let qty = Decimal(string: quantity.trimmingCharacters(in: .whitespaces)), qty > 0 else {
-            error = L("error.qtyInvalid", comment: ""); return
+        guard let container else {
+            error = L("error.operationUnavailable", comment: "")
+            return
         }
-        guard let cost = Decimal(string: costPrice.trimmingCharacters(in: .whitespaces)), cost > 0 else {
-            error = L("error.costInvalid", comment: ""); return
-        }
-        let sid = SymbolID(code: code.trimmingCharacters(in: .whitespaces), market: market)
-        let holding: Holding
-        if var existing = initial {
-            existing.symbol = sid
-            existing.name = name.isEmpty ? code : name
-            existing.quantity = qty
-            existing.costPrice = cost
-            existing.currency = sid.market.defaultCurrency
-            holding = existing
-        } else {
-            holding = Holding(
-                symbol: sid,
-                name: name.isEmpty ? code : name,
-                quantity: qty,
-                costPrice: cost
-            )
-        }
+        var updated = initial
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.name = trimmedName.isEmpty ? initial.symbol.code : trimmedName
+        let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.note = trimmedNote.isEmpty ? nil : trimmedNote
+        updated.inTicker = inTicker
         do {
-            try container?.holdingsRepo.upsert(holding)
+            // 资料编辑只更新名称、备注和菜单栏显示，不触碰数量/成本/标的。
+            try container.holdingsRepo.updateMetadata(from: updated)
             onSaved()
         } catch {
-            self.error = "\(error)"
+            self.error = error.localizedDescription
         }
+    }
+
+    private func decimalText(_ value: Decimal) -> String {
+        NSDecimalNumber(decimal: value).stringValue
+    }
+
+    private func displayCode(_ symbol: SymbolID) -> String {
+        symbol.market == .us ? symbol.code.uppercased() : symbol.code
     }
 }

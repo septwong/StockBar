@@ -6,8 +6,10 @@ struct HoldingsTab: View {
     @EnvironmentObject var refresher: QuoteRefresher
     @EnvironmentObject var appearance: AppearancePreferences
     @EnvironmentObject var prefs: TickerPreferences
-    /// 当前 hover 的行 id;有值时该行尾露出铅笔编辑按钮。
+    /// 当前 hover 的行 id;有值时该行名后露出编辑和操作按钮。
     @State private var hoveredID: UUID?
+    @State private var tradeRequest: PortfolioTradeSheetRequest?
+    @State private var historyHolding: Holding?
 
     /// 把 snapshot.positions 按 holding.id 建索引,O(1) 查找。
     private var positionsByID: [UUID: HoldingPosition] {
@@ -30,7 +32,7 @@ struct HoldingsTab: View {
                 estimatedQuoteWidth(holding: holding, quote: quote),
                 metricLineWidth(
                     label: metricMode.displayName,
-                    value: nativeMetric(holding: holding, quote: quote, mode: metricMode),
+                    value: nativeMetric(position: position, mode: metricMode),
                     currency: holding.currency
                 ),
                 baseMetricWidth(value: baseMetric(position: position, mode: metricMode), currency: refresher.snapshot.baseCurrency)
@@ -50,8 +52,8 @@ struct HoldingsTab: View {
                         emptyState
                     } else {
                         ForEach(vm.holdings) { holding in
-                            // 编辑按钮以 hover 时是否显示的形式传给 HoldingRow,在 name 后面 inline 出现,
-                            // 不再用 ZStack 覆盖右侧(挡住涨跌幅 pill)。
+                            // 编辑和操作按钮以 hover 时是否显示的形式传给 HoldingRow,
+                            // 在 name 后面 inline 出现,不再用 ZStack 覆盖右侧(挡住涨跌幅 pill)。
                             HoldingRow(
                                 holding: holding,
                                 quote: refresher.quotes[holding.symbol],
@@ -62,7 +64,12 @@ struct HoldingsTab: View {
                                 metricsLayout: metricsLayout,
                                 metricMode: holdingPopoverMetric,
                                 showEditButton: hoveredID == holding.id,
-                                onEdit: { openEdit(holding) }
+                                onTrade: { mode in
+                                    tradeRequest = PortfolioTradeSheetRequest(mode: mode, holding: holding)
+                                },
+                                onHistory: { historyHolding = holding },
+                                onEdit: { openEdit(holding) },
+                                onOpenInBrowser: { openInBrowser(holding.symbol) }
                             )
                             .contentShape(Rectangle())
                             .onHover { hovering in
@@ -71,14 +78,15 @@ struct HoldingsTab: View {
                                 }
                             }
                             .contextMenu {
-                                Button(L("action.edit", comment: "")) { openEdit(holding) }
-                                Button(L("action.openInBrowser", comment: "")) {
-                                    openInBrowser(holding.symbol)
-                                }
-                                Divider()
-                                Button(L("action.delete", comment: ""), role: .destructive) {
-                                    vm.deleteHolding(holding.id)
-                                }
+                                PortfolioHoldingActionItems(
+                                    includeOpenInBrowser: true,
+                                    onTrade: { mode in
+                                        tradeRequest = PortfolioTradeSheetRequest(mode: mode, holding: holding)
+                                    },
+                                    onHistory: { historyHolding = holding },
+                                    onEdit: { openEdit(holding) },
+                                    onOpenInBrowser: { openInBrowser(holding.symbol) }
+                                )
                             }
                             .onTapGesture(count: 2) {
                                 openInBrowser(holding.symbol)
@@ -94,6 +102,19 @@ struct HoldingsTab: View {
                 quickAddButton
             }
         }
+        .sheet(item: $tradeRequest) { request in
+            PortfolioTradeEditorSheet(request: request, onSaved: {
+                tradeRequest = nil
+                refresher.refreshNow()
+            }, onCancel: {
+                tradeRequest = nil
+            })
+        }
+        .sheet(item: $historyHolding) { holding in
+            PortfolioHistorySheet(holding: holding, onCancel: {
+                historyHolding = nil
+            })
+        }
     }
 
     private func openEdit(_ holding: Holding) {
@@ -104,7 +125,7 @@ struct HoldingsTab: View {
         Button(action: openAddSheet) {
             HStack(spacing: 4) {
                 Image(systemName: "plus.circle.fill")
-                Text(L("holdings.quickAdd", comment: ""))
+                Text(L("holdings.quickBuy", comment: ""))
             }
             .font(.system(size: 11, weight: .medium))
             .foregroundColor(.accentColor)
@@ -122,7 +143,7 @@ struct HoldingsTab: View {
     }
 
     private func openAddSheet() {
-        SettingsWindowController.shared.show(initialAction: .addHolding)
+        tradeRequest = PortfolioTradeSheetRequest(mode: .buy)
     }
 
     private func openInBrowser(_ symbol: SymbolID) {
@@ -140,7 +161,7 @@ struct HoldingsTab: View {
             Text(L("holdings.empty", comment: ""))
                 .font(.system(size: 12))
                 .foregroundColor(.secondary)
-            Button(L("holdings.addFirst", comment: "")) {
+            Button(L("holdings.buyFirst", comment: "")) {
                 openAddSheet()
             }
             .controlSize(.small)
@@ -149,22 +170,15 @@ struct HoldingsTab: View {
         .padding(.vertical, 40)
     }
 
-    private func nativePnL(holding: Holding, quote: Quote?) -> Decimal? {
-        guard let quote else { return nil }
-        return (quote.price - holding.costPrice) * holding.quantity
-    }
-
-    private func nativeTodayPnL(holding: Holding, quote: Quote?) -> Decimal? {
-        guard let quote else { return nil }
-        return holding.todayPnL(for: quote)
-    }
-
-    private func nativeMetric(holding: Holding, quote: Quote?, mode: HoldingPopoverMetric) -> Decimal? {
+    private func nativeMetric(
+        position: HoldingPosition?,
+        mode: HoldingPopoverMetric
+    ) -> Decimal? {
         switch mode {
         case .allTime:
-            return nativePnL(holding: holding, quote: quote)
+            return position?.pnl
         case .today:
-            return nativeTodayPnL(holding: holding, quote: quote)
+            return position?.todayPnL
         }
     }
 
@@ -233,28 +247,21 @@ private struct HoldingRow: View {
     let baseCurrency: Currency
     let metricsLayout: HoldingMetricsLayout
     let metricMode: HoldingPopoverMetric
-    /// hover 时显示 inline 编辑铅笔(放在 name 后面,不挡涨跌)
+    /// hover 时显示 inline 编辑铅笔和操作按钮(放在 name 后面,不挡涨跌)
     let showEditButton: Bool
+    let onTrade: (PortfolioTradeMode) -> Void
+    let onHistory: () -> Void
     let onEdit: () -> Void
+    let onOpenInBrowser: () -> Void
 
-    /// 只要有 quote(无论 position 有没有),立即就能算出原币种的盈亏。
-    /// 本位币换算需要 FX,只能依赖 position。
-    private var nativePnL: Decimal? {
-        guard let q = quote else { return nil }
-        return (q.price - holding.costPrice) * holding.quantity
-    }
-
-    private var nativeTodayPnL: Decimal? {
-        guard let q = quote else { return nil }
-        return holding.todayPnL(for: q)
-    }
-
+    /// Native and base P&L both come from the transaction-aware snapshot so
+    /// the row cannot fall back to the old cost-only calculation.
     private var selectedMetricValue: Decimal? {
         switch metricMode {
         case .allTime:
-            return nativePnL
+            return position?.pnl
         case .today:
-            return nativeTodayPnL
+            return position?.todayPnL
         }
     }
 
@@ -339,6 +346,29 @@ private struct HoldingRow: View {
             .disabled(!showEditButton)
             .frame(width: 16, height: 16)
             .contentShape(Rectangle())
+            .accessibilityHidden(!showEditButton)
+
+            Menu {
+                PortfolioHoldingActionItems(
+                    includeOpenInBrowser: true,
+                    onTrade: onTrade,
+                    onHistory: onHistory,
+                    onEdit: onEdit,
+                    onOpenInBrowser: onOpenInBrowser
+                )
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.accentColor)
+                    .frame(width: 16, height: 16)
+                    .contentShape(Rectangle())
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .tint(.accentColor)
+            .help(L("action.more", comment: ""))
+            .opacity(showEditButton ? 1 : 0)
+            .disabled(!showEditButton)
             .accessibilityHidden(!showEditButton)
         }
     }
@@ -425,7 +455,8 @@ private struct HoldingRow: View {
 
     private var detailText: String {
         let qtyDisplay = "\(holding.quantity)"
-        let costDisplay = holding.currency.format(holding.costPrice, fractionDigits: 3)
+        let displayCost = position?.adjustedCostPrice ?? holding.costPrice
+        let costDisplay = holding.currency.format(displayCost, fractionDigits: 3)
         return String(format: L("holding.detail", comment: ""), qtyDisplay, costDisplay)
     }
 

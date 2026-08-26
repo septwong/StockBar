@@ -58,6 +58,10 @@ struct HoldingsRepository {
     let dbPool: DatabasePool
 
     func all() throws -> [Holding] {
+        try allIncludingClosed().filter { $0.quantity > 0 }
+    }
+
+    func allIncludingClosed() throws -> [Holding] {
         try dbPool.read { db in
             // sortOrder 优先,相同 order(没拖过)再按 createdAt 升序兜底
             try HoldingRecord
@@ -68,20 +72,75 @@ struct HoldingsRepository {
 
     func upsert(_ holding: Holding) throws {
         try dbPool.write { db in
-            try HoldingRecord.from(holding).save(db)
+            try Self.upsert(holding, in: db)
         }
+    }
+
+    /// Updates only editable metadata. Quantity, cost and symbol are
+    /// deliberately excluded so a stale settings row cannot overwrite a
+    /// newer transaction materialized by PortfolioOperationService.
+    func updateMetadata(from holding: Holding) throws {
+        try dbPool.write { db in
+            try Self.updateMetadata(from: holding, in: db)
+        }
+    }
+
+    func find(id: UUID, includingClosed: Bool = true) throws -> Holding? {
+        try dbPool.read { db in
+            try Self.find(id: id, includingClosed: includingClosed, in: db)
+        }
+    }
+
+    func find(symbol: SymbolID, includingClosed: Bool = true) throws -> Holding? {
+        try dbPool.read { db in
+            try Self.find(symbol: symbol, includingClosed: includingClosed, in: db)
+        }
+    }
+
+    static func upsert(_ holding: Holding, in db: GRDB.Database) throws {
+        try HoldingRecord.from(holding).save(db)
+    }
+
+    static func updateMetadata(from holding: Holding, in db: GRDB.Database) throws {
+        try db.execute(
+            sql: "UPDATE holding SET name = ?, note = ?, inTicker = ? WHERE id = ?",
+            arguments: [holding.name, holding.note, holding.inTicker, holding.id.uuidString]
+        )
+    }
+
+    static func find(id: UUID, includingClosed: Bool = true, in db: GRDB.Database) throws -> Holding? {
+        let record = try HoldingRecord.fetchOne(db, key: id.uuidString)
+        guard let holding = record?.toDomain() else { return nil }
+        return includingClosed || holding.quantity > 0 ? holding : nil
+    }
+
+    static func find(symbol: SymbolID, includingClosed: Bool = true, in db: GRDB.Database) throws -> Holding? {
+        let record = try HoldingRecord
+            .filter(Column("code") == symbol.code && Column("market") == symbol.market.rawValue)
+            .order(Column("quantity").desc, Column("sortOrder").asc)
+            .fetchOne(db)
+        guard let holding = record?.toDomain() else { return nil }
+        return includingClosed || holding.quantity > 0 ? holding : nil
     }
 
     func delete(id: UUID) throws {
         _ = try dbPool.write { db in
-            try HoldingRecord.deleteOne(db, key: id.uuidString)
+            try Self.delete(id: id, in: db)
         }
+    }
+
+    static func delete(id: UUID, in db: GRDB.Database) throws {
+        _ = try HoldingRecord.deleteOne(db, key: id.uuidString)
     }
 
     func deleteAll() throws {
         _ = try dbPool.write { db in
-            try HoldingRecord.deleteAll(db)
+            try Self.deleteAll(in: db)
         }
+    }
+
+    static func deleteAll(in db: GRDB.Database) throws {
+        _ = try HoldingRecord.deleteAll(db)
     }
 
     func replaceAll(_ holdings: [Holding], in db: GRDB.Database) throws {
@@ -110,7 +169,9 @@ struct HoldingsRepository {
             let observation = ValueObservation.tracking { db -> [Holding] in
                 try HoldingRecord
                     .order(Column("sortOrder").asc, Column("createdAt").asc)
-                    .fetchAll(db).compactMap { $0.toDomain() }
+                    .fetchAll(db)
+                    .compactMap { $0.toDomain() }
+                    .filter { $0.quantity > 0 }
             }
             let cancellable = observation.start(in: dbPool, onError: { _ in }) { holdings in
                 continuation.yield(holdings)

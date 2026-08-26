@@ -57,6 +57,7 @@ final class QuoteRefresher: ObservableObject {
     private let quoteCacheRepo: QuoteCacheRepository?
     private let fxCacheRepo: FXCacheRepository?
     private let holdingsRepo: HoldingsRepository?
+    private let transactionsRepo: PortfolioTransactionsRepository?
     private let indexRepo: IndexRepository?
     private let settingsRepo: SettingsRepository?
     private let alertEngine: AlertEngine?
@@ -83,6 +84,7 @@ final class QuoteRefresher: ObservableObject {
         quoteCacheRepo: QuoteCacheRepository? = nil,
         fxCacheRepo: FXCacheRepository? = nil,
         holdingsRepo: HoldingsRepository? = nil,
+        transactionsRepo: PortfolioTransactionsRepository? = nil,
         indexRepo: IndexRepository? = nil,
         settingsRepo: SettingsRepository? = nil,
         alertEngine: AlertEngine? = nil
@@ -93,6 +95,7 @@ final class QuoteRefresher: ObservableObject {
         self.quoteCacheRepo = quoteCacheRepo
         self.fxCacheRepo = fxCacheRepo
         self.holdingsRepo = holdingsRepo
+        self.transactionsRepo = transactionsRepo
         self.indexRepo = indexRepo
         self.settingsRepo = settingsRepo
         self.alertEngine = alertEngine
@@ -110,11 +113,13 @@ final class QuoteRefresher: ObservableObject {
         // 这样 popover 一打开 totalAssets / 累计盈亏立即正确,不用等 warmup 完成。
         if let holdingsRepo = holdingsRepo, let settingsRepo = settingsRepo {
             let holdings = (try? holdingsRepo.all()) ?? []
+            let transactions = (try? transactionsRepo?.all()) ?? []
             let fxCache = fxCacheRepo?.loadAll() ?? [:]
             let converter = CurrencyConverter(fromCache: fxCache)
             let baseCurrency = settingsRepo.baseCurrency
             self.snapshot = PortfolioService.computeSnapshotSync(
                 holdings: holdings,
+                transactions: transactions,
                 quotes: cachedQuotes,
                 converter: converter,
                 baseCurrency: baseCurrency

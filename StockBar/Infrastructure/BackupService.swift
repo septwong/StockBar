@@ -8,16 +8,17 @@ struct BackupBundle: Codable {
     let exportedAt: Date
     let appVersion: String
     let holdings: [Holding]
+    let transactions: [PortfolioTransaction]
     let watchlist: [WatchItem]
     let indices: [IndexDescriptor]
     let alerts: [Alert]
     /// 可移植的非敏感设置。API Key 等凭据永不导出。
     let settings: [String: String]
 
-    static let currentSchemaVersion: Int = 2
+    static let currentSchemaVersion: Int = 3
 
     private enum CodingKeys: String, CodingKey {
-        case schemaVersion, exportedAt, appVersion, holdings, watchlist, indices, alerts, settings
+        case schemaVersion, exportedAt, appVersion, holdings, transactions, watchlist, indices, alerts, settings
     }
 
     init(
@@ -25,6 +26,7 @@ struct BackupBundle: Codable {
         exportedAt: Date,
         appVersion: String,
         holdings: [Holding],
+        transactions: [PortfolioTransaction] = [],
         watchlist: [WatchItem],
         indices: [IndexDescriptor],
         alerts: [Alert],
@@ -34,6 +36,7 @@ struct BackupBundle: Codable {
         self.exportedAt = exportedAt
         self.appVersion = appVersion
         self.holdings = holdings
+        self.transactions = transactions
         self.watchlist = watchlist
         self.indices = indices
         self.alerts = alerts
@@ -47,6 +50,7 @@ struct BackupBundle: Codable {
         exportedAt = try values.decode(Date.self, forKey: .exportedAt)
         appVersion = try values.decode(String.self, forKey: .appVersion)
         holdings = try values.decode([Holding].self, forKey: .holdings)
+        transactions = try values.decodeIfPresent([PortfolioTransaction].self, forKey: .transactions) ?? []
         watchlist = try values.decode([WatchItem].self, forKey: .watchlist)
         indices = try values.decodeIfPresent([IndexDescriptor].self, forKey: .indices) ?? IndexCatalog.defaults
         alerts = try values.decode([Alert].self, forKey: .alerts)
@@ -73,7 +77,8 @@ final class BackupService {
     // MARK: 导出
 
     func makeBundle() throws -> BackupBundle {
-        let holdings = try container.holdingsRepo.all()
+        let holdings = try container.holdingsRepo.allIncludingClosed()
+        let transactions = try container.transactionsRepo.all()
         let watchlist = try container.watchlistRepo.all()
         let indices = try container.indexRepo.all()
         let alerts = try container.alertsRepo.all()
@@ -84,6 +89,7 @@ final class BackupService {
             exportedAt: Date(),
             appVersion: version,
             holdings: holdings,
+            transactions: transactions,
             watchlist: watchlist,
             indices: indices,
             alerts: alerts,
@@ -124,6 +130,10 @@ final class BackupService {
         // every table instead of leaving a partially imported portfolio.
         try container.database.dbPool.write { db in
             try container.holdingsRepo.replaceAll(bundle.holdings, in: db)
+            let transactions = bundle.transactions.isEmpty
+                ? bundle.holdings.map(Self.openingTransaction(for:))
+                : bundle.transactions
+            try container.transactionsRepo.replaceAll(transactions, in: db)
             try container.watchlistRepo.replaceAll(bundle.watchlist, in: db)
             try container.indexRepo.replaceAll(bundle.indices, in: db)
             try container.alertsRepo.replaceAll(bundle.alerts, in: db)
@@ -142,6 +152,21 @@ final class BackupService {
         var result = settings
         result.removeValue(forKey: DataSourcePreferences.Keys.finnhubKey)
         return result
+    }
+
+    private static func openingTransaction(for holding: Holding) -> PortfolioTransaction {
+        PortfolioTransaction(
+            holdingID: holding.id,
+            symbol: holding.symbol,
+            name: holding.name,
+            type: .openingBalance,
+            quantity: holding.quantity,
+            price: holding.costPrice,
+            currency: holding.currency,
+            occurredAt: holding.createdAt,
+            recordedAt: holding.createdAt,
+            note: holding.note
+        )
     }
 
     // MARK: NSPanel 工具

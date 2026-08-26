@@ -68,6 +68,7 @@ struct DebugPane: View {
         var done: [String] = []
         if kinds.contains(.holdings) {
             try? container.holdingsRepo.deleteAll()
+            try? container.transactionsRepo.deleteAll()
             done.append("持仓")
         }
         if kinds.contains(.watchlist) {
@@ -97,6 +98,7 @@ struct DebugPane: View {
     private func seedSampleData(container: DependencyContainer) {
         // 先清旧的避免重复
         try? container.holdingsRepo.deleteAll()
+        try? container.transactionsRepo.deleteAll()
         try? container.watchlistRepo.deleteAll()
         try? container.alertsRepo.deleteAll()
 
@@ -116,7 +118,7 @@ struct DebugPane: View {
             Holding(symbol: SymbolID(code: "LI",     market: .us), name: "理想汽车",     quantity: 1000, costPrice: 5,    currency: .usd, sortOrder: 7),  // 美股
             Holding(symbol: SymbolID(code: "NVDA",   market: .us), name: "英伟达",       quantity: 200,  costPrice: 200,  currency: .usd, sortOrder: 8)   // 美股
         ]
-        for h in holdings { try? container.holdingsRepo.upsert(h) }
+        for h in holdings { _ = try? container.portfolioOperations.recordImportedHolding(h) }
 
         // 自选:覆盖未在持仓里的市场组合(美股 / 港股 / 科创板),便于一并验证。
         let watches: [WatchItem] = [

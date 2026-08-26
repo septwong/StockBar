@@ -22,6 +22,7 @@ final class PopoverViewModel: ObservableObject {
 
     let refresher: QuoteRefresher
     let holdingsRepo: HoldingsRepository
+    let portfolioOperations: PortfolioOperationService
     let watchlistRepo: WatchlistRepository
     let settingsRepo: SettingsRepository
 
@@ -30,11 +31,13 @@ final class PopoverViewModel: ObservableObject {
     init(
         refresher: QuoteRefresher,
         holdingsRepo: HoldingsRepository,
+        portfolioOperations: PortfolioOperationService,
         watchlistRepo: WatchlistRepository,
         settingsRepo: SettingsRepository
     ) {
         self.refresher = refresher
         self.holdingsRepo = holdingsRepo
+        self.portfolioOperations = portfolioOperations
         self.watchlistRepo = watchlistRepo
         self.settingsRepo = settingsRepo
         reload()
@@ -73,7 +76,7 @@ final class PopoverViewModel: ObservableObject {
     }
 
     func deleteHolding(_ id: UUID) {
-        try? holdingsRepo.delete(id: id)
+        try? portfolioOperations.deleteHoldingAndHistory(id: id)
         refresher.refreshNow()
     }
 

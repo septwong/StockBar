@@ -34,6 +34,7 @@ final class PopoverController {
         self.viewModel = PopoverViewModel(
             refresher: refresher,
             holdingsRepo: holdingsRepo,
+            portfolioOperations: container.portfolioOperations,
             watchlistRepo: watchlistRepo,
             settingsRepo: settingsRepo
         )
@@ -119,8 +120,8 @@ final class PopoverController {
         let titleWidth = textWidth(displayCode(holding.symbol), size: 11, weight: .regular)
             + 4
             + textWidth(holding.name, size: 12, weight: .semibold)
-            + 14
-        let detailWidth = textWidth(detailText(for: holding), size: 10, weight: .regular)
+            + 40
+        let detailWidth = textWidth(detailText(for: holding, position: position), size: 10, weight: .regular)
         let leftWidth = max(titleWidth, detailWidth)
         let metricsWidth = max(metricsGridWidth, estimatedMetricsGridWidth(holding: holding, quote: quote, position: position))
 
@@ -138,7 +139,7 @@ final class PopoverController {
             estimatedQuoteWidth(holding: holding, quote: quote),
             metricLineWidth(
                 label: metricMode.displayName,
-                value: nativeMetric(holding: holding, quote: quote, mode: metricMode),
+                value: nativeMetric(position: position, mode: metricMode),
                 currency: holding.currency
             ),
             baseMetricWidth(value: baseMetric(position: position, mode: metricMode))
@@ -159,22 +160,15 @@ final class PopoverController {
         HoldingPopoverMetric(rawValue: container.settingsRepo.string(SettingsRepository.Keys.holdingPopoverMetric) ?? "") ?? .allTime
     }
 
-    private func nativePnL(holding: Holding, quote: Quote?) -> Decimal? {
-        guard let quote else { return nil }
-        return (quote.price - holding.costPrice) * holding.quantity
-    }
-
-    private func nativeTodayPnL(holding: Holding, quote: Quote?) -> Decimal? {
-        guard let quote else { return nil }
-        return holding.todayPnL(for: quote)
-    }
-
-    private func nativeMetric(holding: Holding, quote: Quote?, mode: HoldingPopoverMetric) -> Decimal? {
+    private func nativeMetric(
+        position: HoldingPosition?,
+        mode: HoldingPopoverMetric
+    ) -> Decimal? {
         switch mode {
         case .allTime:
-            return nativePnL(holding: holding, quote: quote)
+            return position?.pnl
         case .today:
-            return nativeTodayPnL(holding: holding, quote: quote)
+            return position?.todayPnL
         }
     }
 
@@ -208,9 +202,10 @@ final class PopoverController {
         symbol.market == .us ? symbol.code.uppercased() : symbol.code
     }
 
-    private func detailText(for holding: Holding) -> String {
+    private func detailText(for holding: Holding, position: HoldingPosition?) -> String {
         let qtyDisplay = "\(holding.quantity)"
-        let costDisplay = holding.currency.format(holding.costPrice, fractionDigits: 3)
+        let displayCost = position?.adjustedCostPrice ?? holding.costPrice
+        let costDisplay = holding.currency.format(displayCost, fractionDigits: 3)
         return String(format: L("holding.detail", comment: ""), qtyDisplay, costDisplay)
     }
 
