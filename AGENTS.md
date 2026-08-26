@@ -45,6 +45,12 @@ git diff --check
 - 品牌或身份变更后，搜索旧品牌名称、旧 Bundle ID 和原仓库地址；除迁移历史与第三方声明外不应残留。
 - 暂不启用自动 Release workflow；本地发布脚本生成通用二进制、DMG、ZIP、签名 appcast 和校验和。没有 Developer ID 时使用 ad-hoc 签名并明确安装提示。
 
+## 构建产物与工作区整洁
+
+- 开发、测试和重启时保留 `build/dd` 与 `build/SourcePackages`，不日常执行 `make clean`。
+- 只清理 Spotlight 中重复的 `StockBar.app` / `StockBar-Dev.app`，当前使用的一份可以保留。
+- 发布完成后删除不需要的旧版或备份 DMG/ZIP；不删除 `/Applications/StockBar.app` 或用户数据。
+
 ## Git
 
 - 不自动创建提交；仅在用户明确要求时提交。
