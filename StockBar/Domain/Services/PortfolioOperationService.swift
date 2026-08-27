@@ -47,14 +47,23 @@ struct PortfolioOperationService {
         try validate(quantity: quantity, price: price, fee: fee)
         return try dbPool.write { db in
             let existing = try HoldingsRepository.find(symbol: symbol, includingClosed: true, in: db)
-            let holding = existing ?? Holding(
-                symbol: symbol,
-                name: name.isEmpty ? symbol.code : name,
-                quantity: 0,
-                costPrice: price,
-                currency: symbol.market.defaultCurrency,
-                createdAt: occurredAt
-            )
+            let holding: Holding
+            if let existing, existing.quantity > 0 {
+                holding = existing
+            } else {
+                if let existing {
+                    try PortfolioTransactionsRepository.deleteAll(for: existing.id, in: db)
+                    try HoldingsRepository.delete(id: existing.id, in: db)
+                }
+                holding = Holding(
+                    symbol: symbol,
+                    name: name.isEmpty ? symbol.code : name,
+                    quantity: 0,
+                    costPrice: price,
+                    currency: symbol.market.defaultCurrency,
+                    createdAt: occurredAt
+                )
+            }
             let transaction = PortfolioTransaction(
                 holdingID: holding.id,
                 symbol: symbol,
@@ -118,46 +127,16 @@ struct PortfolioOperationService {
         }
     }
 
-    @discardableResult
-    func clear(
-        holdingID: UUID,
-        price: Decimal,
-        fee: Decimal = 0,
-        occurredAt: Date = Date(),
-        note: String? = nil
-    ) throws -> Holding {
-        try validate(quantity: 1, price: price, fee: fee)
-        return try dbPool.write { db in
+    /// Ends the current position cycle by removing its snapshot and ledger.
+    /// The next buy for the same symbol therefore starts a fresh position.
+    func clear(holdingID: UUID) throws {
+        try dbPool.write { db in
             guard let holding = try HoldingsRepository.find(id: holdingID, includingClosed: true, in: db) else {
                 throw PortfolioOperationError.noHolding
             }
-            let recordedAt = Date()
-            let transactionID = UUID()
-            let existingTransactions = try PortfolioTransactionsRepository.all(for: holding.id, in: db)
-            let stateBefore = try state(
-                before: existingTransactions,
-                occurredAt: occurredAt,
-                recordedAt: recordedAt,
-                transactionID: transactionID
-            )
-            guard stateBefore.quantity > 0 else { throw PortfolioOperationError.noActivePosition }
-            let transaction = PortfolioTransaction(
-                id: transactionID,
-                holdingID: holding.id,
-                symbol: holding.symbol,
-                name: holding.name,
-                type: .clear,
-                quantity: stateBefore.quantity,
-                price: price,
-                fee: fee,
-                feeStatus: .estimated,
-                currency: holding.currency,
-                occurredAt: occurredAt,
-                recordedAt: recordedAt,
-                note: note
-            )
-            try PortfolioTransactionsRepository.insert(transaction, in: db)
-            return try materialize(holding, in: db)
+            guard holding.quantity > 0 else { throw PortfolioOperationError.noActivePosition }
+            try PortfolioTransactionsRepository.deleteAll(for: holding.id, in: db)
+            try HoldingsRepository.delete(id: holding.id, in: db)
         }
     }
 

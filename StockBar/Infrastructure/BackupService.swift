@@ -134,6 +134,7 @@ final class BackupService {
                 ? bundle.holdings.map(Self.openingTransaction(for:))
                 : bundle.transactions
             try container.transactionsRepo.replaceAll(transactions, in: db)
+            try PortfolioTransactionsRepository.removeLegacyClearCycles(in: db)
             try container.watchlistRepo.replaceAll(bundle.watchlist, in: db)
             try container.indexRepo.replaceAll(bundle.indices, in: db)
             try container.alertsRepo.replaceAll(bundle.alerts, in: db)

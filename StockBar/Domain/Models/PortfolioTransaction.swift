@@ -4,6 +4,7 @@ enum PortfolioTransactionType: String, Codable, CaseIterable, Sendable {
     case openingBalance
     case buy
     case sell
+    /// Legacy only. New clear operations remove the position cycle entirely.
     case clear
     case adjustment
 

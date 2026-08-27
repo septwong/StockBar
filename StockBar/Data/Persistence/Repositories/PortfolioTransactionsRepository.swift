@@ -162,6 +162,46 @@ struct PortfolioTransactionsRepository {
         try PortfolioTransactionRecord.deleteOne(db, key: id.uuidString)
     }
 
+    /// Removes the legacy clear cycle created by the first transaction-backed
+    /// implementation. A later buy belongs to a new position cycle, so keep
+    /// only the transactions after the latest clear and rebuild the snapshot.
+    /// A clear with no later transactions removes the closed position too.
+    static func removeLegacyClearCycles(in db: GRDB.Database) throws {
+        let grouped = Dictionary(grouping: try all(in: db), by: \.holdingID)
+        for (holdingID, transactions) in grouped {
+            let sorted = transactions.sorted(by: chronologicalOrder)
+            guard let clearIndex = sorted.lastIndex(where: { $0.type == .clear }) else {
+                continue
+            }
+
+            let remaining = Array(sorted.dropFirst(clearIndex + 1))
+            if remaining.isEmpty {
+                try deleteAll(for: holdingID, in: db)
+                try HoldingsRepository.delete(id: holdingID, in: db)
+                continue
+            }
+
+            for transaction in sorted.prefix(clearIndex + 1) {
+                _ = try delete(id: transaction.id, in: db)
+            }
+
+            guard var holding = try HoldingsRepository.find(
+                id: holdingID,
+                includingClosed: true,
+                in: db
+            ) else {
+                continue
+            }
+            let summary = try PortfolioLedger.replay(remaining)
+            holding.quantity = summary.quantity
+            holding.costPrice = summary.averageCost
+            if let first = remaining.first {
+                holding.createdAt = first.occurredAt
+            }
+            try HoldingsRepository.upsert(holding, in: db)
+        }
+    }
+
     static func deleteAll(in db: GRDB.Database) throws {
         try PortfolioTransactionRecord.deleteAll(db)
     }
@@ -170,5 +210,14 @@ struct PortfolioTransactionsRepository {
         try PortfolioTransactionRecord
             .filter(Column("holdingID") == holdingID.uuidString)
             .deleteAll(db)
+    }
+
+    private static func chronologicalOrder(
+        _ lhs: PortfolioTransaction,
+        _ rhs: PortfolioTransaction
+    ) -> Bool {
+        if lhs.occurredAt != rhs.occurredAt { return lhs.occurredAt < rhs.occurredAt }
+        if lhs.recordedAt != rhs.recordedAt { return lhs.recordedAt < rhs.recordedAt }
+        return lhs.id.uuidString < rhs.id.uuidString
     }
 }

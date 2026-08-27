@@ -121,34 +121,39 @@ struct PortfolioTradeEditorSheet: View {
                     }
                 }
 
-                if mode == .adjust {
+                if mode == .clear {
+                    if let holding {
+                        LabeledContent(L("trade.quantity", comment: "")) {
+                            Text(decimalText(holding.quantity))
+                                .monospacedDigit()
+                        }
+                    }
+                    Text(L("trade.clearDeleteHint", comment: ""))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else if mode == .adjust {
                     TextField(L("trade.targetQuantity", comment: ""), text: $quantity)
                         .textFieldStyle(.roundedBorder)
                     TextField(L("trade.targetCost", comment: ""), text: $price)
                         .textFieldStyle(.roundedBorder)
                 } else {
-                    if mode == .clear, let holding {
-                        LabeledContent(L("trade.quantity", comment: "")) {
-                            Text(decimalText(holding.quantity))
-                                .monospacedDigit()
-                        }
-                    } else {
-                        TextField(L("trade.quantity", comment: ""), text: $quantity)
-                            .textFieldStyle(.roundedBorder)
-                    }
+                    TextField(L("trade.quantity", comment: ""), text: $quantity)
+                        .textFieldStyle(.roundedBorder)
                     TextField(L("trade.price", comment: ""), text: $price)
                         .textFieldStyle(.roundedBorder)
                     TextField(L("trade.fee", comment: ""), text: $fee)
                         .textFieldStyle(.roundedBorder)
                 }
 
-                DatePicker(
-                    L("trade.occurredAt", comment: ""),
-                    selection: $occurredAt,
-                    displayedComponents: [.date, .hourAndMinute]
-                )
-                TextField(L("trade.note", comment: ""), text: $note)
-                    .textFieldStyle(.roundedBorder)
+                if mode != .clear {
+                    DatePicker(
+                        L("trade.occurredAt", comment: ""),
+                        selection: $occurredAt,
+                        displayedComponents: [.date, .hourAndMinute]
+                    )
+                    TextField(L("trade.note", comment: ""), text: $note)
+                        .textFieldStyle(.roundedBorder)
+                }
             }
             .environment(\.calendar, marketCalendar)
 
@@ -262,16 +267,7 @@ struct PortfolioTradeEditorSheet: View {
                 )
             case .clear:
                 guard let holding else { throw PortfolioOperationError.noHolding }
-                guard let executionPrice = decimal(from: price), executionPrice > 0 else {
-                    throw PortfolioOperationError.invalidPrice
-                }
-                _ = try container.portfolioOperations.clear(
-                    holdingID: holding.id,
-                    price: executionPrice,
-                    fee: try feeValue(),
-                    occurredAt: occurredAt,
-                    note: normalizedNote
-                )
+                try container.portfolioOperations.clear(holdingID: holding.id)
             case .adjust:
                 guard let holding else { throw PortfolioOperationError.noHolding }
                 guard let targetQuantity = decimal(from: quantity), targetQuantity >= 0 else {
@@ -410,9 +406,12 @@ struct PortfolioHistorySheet: View {
             HStack(spacing: 6) {
                 Text(transactionTypeName(transaction.type))
                     .font(.system(size: 12, weight: .semibold))
-                if holding == nil {
-                    Text(displayCode(transaction.symbol))
+                Text(displayCode(transaction.symbol))
+                    .foregroundColor(.secondary)
+                if !transaction.name.isEmpty {
+                    Text(transaction.name)
                         .foregroundColor(.secondary)
+                        .lineLimit(1)
                 }
                 Spacer()
                 Text(formatDate(transaction.occurredAt, market: transaction.symbol.market))

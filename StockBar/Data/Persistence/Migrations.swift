@@ -185,6 +185,13 @@ enum Migrations {
             }
         }
 
+        // Before v10, clearing a position inserted a sell-like transaction
+        // and later buys reused the same holding ID. Start a new cycle by
+        // removing everything through the latest legacy clear.
+        migrator.registerMigration("v10_clear_position_cycles") { db in
+            try PortfolioTransactionsRepository.removeLegacyClearCycles(in: db)
+        }
+
         try migrator.migrate(dbPool)
     }
 }

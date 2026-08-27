@@ -5538,13 +5538,30 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This records a sell of all remaining shares and keeps the history."
+            "value" : "This deletes the position and all of its transaction history. A later buy starts a new position."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这会记录一笔卖出全部剩余持仓的交易，并保留历史记录。"
+            "value" : "这会删除该持仓及其全部交易记录；之后再次买入将从新的持仓周期开始计算。"
+          }
+        }
+      }
+    },
+    "trade.clearDeleteHint" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clearing removes this position and its transaction history."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清仓会删除该持仓及其全部交易记录。"
           }
         }
       }
