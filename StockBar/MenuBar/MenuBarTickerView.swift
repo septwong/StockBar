@@ -29,10 +29,16 @@ protocol MenuBarTickerView: NSView {
 /// 在一个宿主中：标准 button + 位图路径会把单屏解析后的颜色复制到其他菜单栏，
 /// 而自定义 view 可让 ticker 按各菜单栏副本的外观实时绘制。宿主同时负责转发点击。
 final class StatusItemTickerHostView: NSView {
+    private enum PressedButton: Equatable {
+        case left
+        case right
+    }
+
     private(set) var tickerView: MenuBarTickerView
     var onClick: ((NSEvent) -> Void)?
     var onHoverChanged: ((Bool) -> Void)?
     private var hoverTrackingArea: NSTrackingArea?
+    private var pressedButton: PressedButton?
 
     init(tickerView: MenuBarTickerView) {
         self.tickerView = tickerView
@@ -88,11 +94,32 @@ final class StatusItemTickerHostView: NSView {
         bounds.contains(point) ? self : nil
     }
 
+    private func acceptsMouseUp(_ event: NSEvent, for button: PressedButton) -> Bool {
+        defer { pressedButton = nil }
+        guard pressedButton == button,
+              let window,
+              let eventWindow = event.window,
+              eventWindow === window else { return false }
+
+        let location = convert(event.locationInWindow, from: nil)
+        return bounds.contains(location)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        pressedButton = .left
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        pressedButton = .right
+    }
+
     override func mouseUp(with event: NSEvent) {
+        guard acceptsMouseUp(event, for: .left) else { return }
         onClick?(event)
     }
 
     override func rightMouseUp(with event: NSEvent) {
+        guard acceptsMouseUp(event, for: .right) else { return }
         onClick?(event)
     }
 }

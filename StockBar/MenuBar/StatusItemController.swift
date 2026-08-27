@@ -639,10 +639,13 @@ final class StatusItemController {
     // MARK: actions
 
     private func handleStatusItemClick(_ event: NSEvent) {
-        if event.type == .rightMouseUp {
+        switch event.type {
+        case .rightMouseUp:
             showContextMenu()
-        } else {
+        case .leftMouseUp:
             togglePopover()
+        default:
+            break
         }
     }
 
