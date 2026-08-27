@@ -4,14 +4,12 @@ enum PortfolioTradeMode: String {
     case buy
     case sell
     case clear
-    case adjust
 
     var titleKey: String {
         switch self {
         case .buy: return "trade.buyTitle"
         case .sell: return "trade.sellTitle"
         case .clear: return "trade.clearTitle"
-        case .adjust: return "trade.adjustTitle"
         }
     }
 
@@ -20,7 +18,6 @@ enum PortfolioTradeMode: String {
         case .buy: return "action.buy"
         case .sell: return "action.sell"
         case .clear: return "action.clear"
-        case .adjust: return "action.adjust"
         }
     }
 }
@@ -50,7 +47,6 @@ struct PortfolioHoldingActionItems: View {
         Button(L("action.sell", comment: "")) { onTrade(.sell) }
         Button(L("action.clear", comment: "")) { onTrade(.clear) }
         Button(L("action.history", comment: ""), action: onHistory)
-        Button(L("action.adjust", comment: "")) { onTrade(.adjust) }
         Divider()
         Button(L("action.edit", comment: ""), action: onEdit)
         if includeOpenInBrowser {
@@ -110,15 +106,6 @@ struct PortfolioTradeEditorSheet: View {
                         .textFieldStyle(.roundedBorder)
                     TextField(L("col.name", comment: ""), text: $name)
                         .textFieldStyle(.roundedBorder)
-                } else if let holding {
-                    LabeledContent(L("col.symbol", comment: "")) {
-                        Text(displayCode(holding.symbol))
-                            .monospacedDigit()
-                    }
-                    LabeledContent(L("col.name", comment: "")) {
-                        Text(holding.name)
-                            .lineLimit(1)
-                    }
                 }
 
                 if mode == .clear {
@@ -131,11 +118,6 @@ struct PortfolioTradeEditorSheet: View {
                     Text(L("trade.clearDeleteHint", comment: ""))
                         .font(.caption)
                         .foregroundColor(.secondary)
-                } else if mode == .adjust {
-                    TextField(L("trade.targetQuantity", comment: ""), text: $quantity)
-                        .textFieldStyle(.roundedBorder)
-                    TextField(L("trade.targetCost", comment: ""), text: $price)
-                        .textFieldStyle(.roundedBorder)
                 } else {
                     TextField(L("trade.quantity", comment: ""), text: $quantity)
                         .textFieldStyle(.roundedBorder)
@@ -204,8 +186,8 @@ struct PortfolioTradeEditorSheet: View {
         code = holding.symbol.code
         name = holding.name
         let quotePrice = container?.refresher.quotes[holding.symbol]?.price ?? holding.costPrice
-        quantity = decimalText(mode == .clear ? holding.quantity : holding.quantity)
-        price = decimalText(mode == .adjust ? holding.costPrice : quotePrice)
+        quantity = decimalText(holding.quantity)
+        price = decimalText(quotePrice)
         fee = "0"
         occurredAt = Date()
     }
@@ -268,21 +250,6 @@ struct PortfolioTradeEditorSheet: View {
             case .clear:
                 guard let holding else { throw PortfolioOperationError.noHolding }
                 try container.portfolioOperations.clear(holdingID: holding.id)
-            case .adjust:
-                guard let holding else { throw PortfolioOperationError.noHolding }
-                guard let targetQuantity = decimal(from: quantity), targetQuantity >= 0 else {
-                    throw PortfolioOperationError.invalidQuantity
-                }
-                guard let targetCost = decimal(from: price), targetCost > 0 else {
-                    throw PortfolioOperationError.invalidPrice
-                }
-                _ = try container.portfolioOperations.adjust(
-                    holdingID: holding.id,
-                    targetQuantity: targetQuantity,
-                    targetCostPrice: targetCost,
-                    occurredAt: occurredAt,
-                    note: normalizedNote
-                )
             }
             onSaved()
         } catch {
@@ -310,9 +277,6 @@ struct PortfolioTradeEditorSheet: View {
         NSDecimalNumber(decimal: value).stringValue
     }
 
-    private func displayCode(_ symbol: SymbolID) -> String {
-        symbol.market == .us ? symbol.code.uppercased() : symbol.code
-    }
 }
 
 struct PortfolioHistorySheet: View {
@@ -437,7 +401,7 @@ struct PortfolioHistorySheet: View {
                 }
                 if entry.realizedPnL != 0 {
                     Text(String(format: L("trade.historyRealized", comment: ""), transaction.currency.format(entry.realizedPnL)))
-                        .foregroundColor(entry.realizedPnL >= 0 ? .green : .red)
+                        .foregroundColor(realizedPnLColor(entry.realizedPnL))
                 }
             }
             .font(.caption)
@@ -474,13 +438,11 @@ struct PortfolioHistorySheet: View {
         case .openingBalance: return L("trade.typeOpening", comment: "")
         case .buy: return L("action.buy", comment: "")
         case .sell: return L("action.sell", comment: "")
-        case .clear: return L("action.clear", comment: "")
-        case .adjustment: return L("action.adjust", comment: "")
         }
     }
 
     private func canEditFee(_ type: PortfolioTransactionType) -> Bool {
-        type == .buy || type == .sell || type == .clear
+        type == .buy || type == .sell
     }
 
     private func feeStatusName(_ status: PortfolioTransactionFeeStatus) -> String {
@@ -504,6 +466,10 @@ struct PortfolioHistorySheet: View {
 
     private func displayCode(_ symbol: SymbolID) -> String {
         symbol.market == .us ? symbol.code.uppercased() : symbol.code
+    }
+
+    private func realizedPnLColor(_ value: Decimal) -> Color {
+        SemanticColors.directional(value, scheme: container?.tickerPrefs.colorScheme ?? .east)
     }
 }
 

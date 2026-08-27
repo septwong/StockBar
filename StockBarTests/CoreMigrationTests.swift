@@ -45,6 +45,41 @@ final class CoreMigrationTests: XCTestCase {
         XCTAssertTrue(transactionColumns.contains("feeUpdatedAt"))
     }
 
+    func testDefaultIndicesIncludeStar50AndCSI1000() {
+        XCTAssertEqual(
+            Array(IndexCatalog.defaults.map(\.id).prefix(6)),
+            ["SH000001", "SZ399001", "SZ399006", "SH000688", "SH000300", "SH000852"]
+        )
+
+        let star50 = IndexCatalog.defaults.first { $0.id == "SH000688" }
+        XCTAssertEqual(star50?.nameZh, "科创50")
+        XCTAssertEqual(star50?.nameEn, "SSE STAR Market 50")
+        XCTAssertEqual(star50?.emSecid, "1.000688")
+        XCTAssertEqual(star50?.tencentCode, "sh000688")
+
+        let csi1000 = IndexCatalog.defaults.first { $0.id == "SH000852" }
+        XCTAssertEqual(csi1000?.nameZh, "中证1000")
+        XCTAssertEqual(csi1000?.nameEn, "CSI 1000")
+        XCTAssertEqual(csi1000?.emSecid, "1.000852")
+        XCTAssertEqual(csi1000?.tencentCode, "sh000852")
+    }
+
+    func testIndexRepositoryPlacesNewIndicesAfterTheirRequestedAnchors() throws {
+        try database.dbPool.write { db in
+            try db.execute(sql: "DELETE FROM indexItem WHERE id IN (?, ?)", arguments: ["SH000688", "SH000852"])
+            let star50 = try XCTUnwrap(IndexCatalog.defaults.first { $0.id == "SH000688" })
+            let csi1000 = try XCTUnwrap(IndexCatalog.defaults.first { $0.id == "SH000852" })
+            try IndexRepository.insertMissing(star50, beforeID: "SH000300", in: db)
+            try IndexRepository.insertMissing(csi1000, beforeID: "HSI", in: db)
+        }
+
+        let ids = try IndexRepository(dbPool: database.dbPool).all().map(\.id)
+        XCTAssertEqual(
+            Array(ids.prefix(6)),
+            ["SH000001", "SZ399001", "SZ399006", "SH000688", "SH000300", "SH000852"]
+        )
+    }
+
     func testRepositoriesRoundTripAndReorder() throws {
         let settings = SettingsRepository(dbPool: database.dbPool)
         try settings.set(SettingsRepository.Keys.language, "en")

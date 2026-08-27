@@ -39,6 +39,8 @@ enum BrowserURLBuilder {
             case "SZ399001": return URL(string: "https://xueqiu.com/S/SZ399001")
             case "SZ399006": return URL(string: "https://xueqiu.com/S/SZ399006")
             case "SH000300": return URL(string: "https://xueqiu.com/S/SH000300")
+            case "SH000688": return URL(string: "https://xueqiu.com/S/SH000688")
+            case "SH000852": return URL(string: "https://xueqiu.com/S/SH000852")
             case "HSI":      return URL(string: "https://xueqiu.com/S/HKHSI")
             case "DJIA":     return URL(string: "https://xueqiu.com/S/.DJI")
             case "NDX":      return URL(string: "https://xueqiu.com/S/.IXIC")
@@ -52,6 +54,8 @@ enum BrowserURLBuilder {
             case "SZ399001": sym = "399001.SZ"
             case "SZ399006": sym = "399006.SZ"
             case "SH000300": sym = "000300.SS"
+            case "SH000688": sym = "000688.SS"
+            case "SH000852": sym = "000852.SS"
             case "HSI":      sym = "%5EHSI"
             case "DJIA":     sym = "%5EDJI"
             case "NDX":      sym = "%5ENDX"
@@ -66,6 +70,8 @@ enum BrowserURLBuilder {
             case "SZ399001": path = "SZSE-399001"
             case "SZ399006": path = "SZSE-399006"
             case "SH000300": path = "SSE-000300"
+            case "SH000688": path = "SSE-000688"
+            case "SH000852": path = "SSE-000852"
             case "HSI":      path = "HSI-HSI"
             case "DJIA":     path = "DJ-DJI"
             case "NDX":      path = "NASDAQ-NDX"

@@ -4,13 +4,6 @@ enum PortfolioTransactionType: String, Codable, CaseIterable, Sendable {
     case openingBalance
     case buy
     case sell
-    /// Legacy only. New clear operations remove the position cycle entirely.
-    case clear
-    case adjustment
-
-    var isSellLike: Bool {
-        self == .sell || self == .clear
-    }
 }
 
 enum PortfolioTransactionFeeStatus: String, Codable, CaseIterable, Sendable {
@@ -27,11 +20,11 @@ struct PortfolioTransaction: Identifiable, Codable, Equatable, Sendable {
     let symbol: SymbolID
     let name: String
     let type: PortfolioTransactionType
-    /// For buy/sell/clear this is the executed quantity. For opening and
-    /// adjustment it is the target quantity after the operation.
+    /// For buy/sell this is the executed quantity. For opening it is the
+    /// quantity in the imported or migrated snapshot.
     let quantity: Decimal
-    /// For trades this is the execution price. For opening and adjustment it
-    /// is the target average cost price.
+    /// For trades this is the execution price. For opening it is the average
+    /// cost price in the imported or migrated snapshot.
     let price: Decimal
     let fee: Decimal
     let feeStatus: PortfolioTransactionFeeStatus
@@ -156,7 +149,7 @@ enum PortfolioLedger {
         var entries: [PortfolioTransactionEntry] = []
 
         for transaction in sorted {
-            let allowsZeroQuantity = transaction.type == .openingBalance || transaction.type == .adjustment
+            let allowsZeroQuantity = transaction.type == .openingBalance
             let quantityIsValid = allowsZeroQuantity ? transaction.quantity >= 0 : transaction.quantity > 0
             guard quantityIsValid else { throw PortfolioLedgerError.invalidQuantity }
             let allowsZeroPrice = allowsZeroQuantity && transaction.quantity == 0
@@ -167,14 +160,12 @@ enum PortfolioLedger {
             var entryRealized: Decimal = 0
 
             switch transaction.type {
-            case .openingBalance, .adjustment:
-                // These operations establish or correct a position baseline;
-                // they do not represent a sale and therefore realize no P&L.
+            case .openingBalance:
+                // An opening snapshot establishes a position baseline; it
+                // does not represent a sale and therefore realizes no P&L.
                 quantity = transaction.quantity
                 costAmount = transaction.quantity * transaction.price
-                if transaction.type == .openingBalance {
-                    historicalCostBase += costAmount
-                }
+                historicalCostBase += costAmount
 
             case .buy:
                 let grossCost = transaction.quantity * transaction.price + transaction.fee
@@ -182,7 +173,7 @@ enum PortfolioLedger {
                 costAmount += grossCost
                 historicalCostBase += grossCost
 
-            case .sell, .clear:
+            case .sell:
                 guard transaction.quantity <= quantity else { throw PortfolioLedgerError.oversell }
                 let averageCost = quantity > 0 ? costAmount / quantity : 0
                 entryRealized = transaction.quantity * transaction.price

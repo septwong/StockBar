@@ -313,13 +313,15 @@ actor PortfolioService {
 
         for transaction in today {
             switch transaction.type {
-            case .openingBalance, .adjustment:
-                // A same-day opening/correction establishes the day's new
-                // baseline instead of being treated as a cash purchase.
+            case .openingBalance:
+                // An opening snapshot establishes the day's new baseline
+                // instead of being treated as a cash purchase.
                 baselineValue = transaction.quantity * transaction.price
+                buyGross = 0
+                sellNet = 0
             case .buy:
                 buyGross += transaction.quantity * transaction.price
-            case .sell, .clear:
+            case .sell:
                 sellNet += transaction.quantity * transaction.price
             }
         }

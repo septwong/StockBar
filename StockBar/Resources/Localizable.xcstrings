@@ -100,23 +100,6 @@
         }
       }
     },
-    "action.adjust" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Adjust Position"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "持仓调整"
-          }
-        }
-      }
-    },
     "action.buy" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5498,23 +5481,6 @@
         }
       }
     },
-    "trade.adjustTitle" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Adjust Position"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "持仓调整"
-          }
-        }
-      }
-    },
     "trade.buyTitle" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5902,40 +5868,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "卖出"
-          }
-        }
-      }
-    },
-    "trade.targetCost" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Target Average Cost"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "目标平均成本"
-          }
-        }
-      }
-    },
-    "trade.targetQuantity" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Target Quantity"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "目标股数"
           }
         }
       }

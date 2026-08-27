@@ -140,38 +140,9 @@ struct PortfolioOperationService {
         }
     }
 
-    @discardableResult
-    func adjust(
-        holdingID: UUID,
-        targetQuantity: Decimal,
-        targetCostPrice: Decimal,
-        occurredAt: Date = Date(),
-        note: String? = nil
-    ) throws -> Holding {
-        try validateAdjustment(quantity: targetQuantity, price: targetCostPrice)
-        return try dbPool.write { db in
-            guard let holding = try HoldingsRepository.find(id: holdingID, includingClosed: true, in: db) else {
-                throw PortfolioOperationError.noHolding
-            }
-            let transaction = PortfolioTransaction(
-                holdingID: holding.id,
-                symbol: holding.symbol,
-                name: holding.name,
-                type: .adjustment,
-                quantity: targetQuantity,
-                price: targetCostPrice,
-                currency: holding.currency,
-                occurredAt: occurredAt,
-                note: note
-            )
-            try PortfolioTransactionsRepository.insert(transaction, in: db)
-            return try materialize(holding, in: db)
-        }
-    }
-
-    /// Imports the legacy CSV representation as an opening balance (or a
-    /// non-trading adjustment for an already-known symbol). This keeps all
-    /// quantity/cost changes on the same transaction-backed path as UI edits.
+    /// Imports one CSV snapshot without changing the import's original
+    /// per-symbol merge semantics. An imported symbol starts a fresh ledger
+    /// snapshot; symbols not present in the CSV remain untouched.
     @discardableResult
     func recordImportedHolding(_ imported: Holding) throws -> Holding {
         guard imported.quantity >= 0 else { throw PortfolioOperationError.invalidQuantity }
@@ -185,12 +156,13 @@ struct PortfolioOperationService {
                 holding.currency = imported.currency
                 holding.inTicker = imported.inTicker
                 holding.sortOrder = imported.sortOrder
+                try PortfolioTransactionsRepository.deleteAll(for: existing.id, in: db)
             }
             let transaction = PortfolioTransaction(
                 holdingID: holding.id,
                 symbol: holding.symbol,
                 name: holding.name,
-                type: existing == nil ? .openingBalance : .adjustment,
+                type: .openingBalance,
                 quantity: imported.quantity,
                 price: imported.costPrice,
                 currency: imported.currency,
@@ -207,7 +179,7 @@ struct PortfolioOperationService {
         return try PortfolioLedger.replay(transactions).entries.reversed()
     }
 
-    /// Replaces the fee on an existing buy/sell/clear transaction after the
+    /// Replaces the fee on an existing buy/sell transaction after the
     /// broker settles it. The original transaction ID and trade details stay
     /// unchanged; the ledger and materialized holding are replayed atomically.
     @discardableResult
@@ -218,7 +190,7 @@ struct PortfolioOperationService {
             guard let existing = transactions.first(where: { $0.id == transactionID }) else {
                 throw PortfolioOperationError.noTransaction
             }
-            guard existing.type == .buy || existing.type == .sell || existing.type == .clear else {
+            guard existing.type == .buy || existing.type == .sell else {
                 throw PortfolioOperationError.invalidOperation
             }
             guard let holding = try HoldingsRepository.find(
@@ -321,8 +293,4 @@ struct PortfolioOperationService {
         guard fee >= 0 else { throw PortfolioOperationError.invalidFee }
     }
 
-    private func validateAdjustment(quantity: Decimal, price: Decimal) throws {
-        guard quantity >= 0 else { throw PortfolioOperationError.invalidQuantity }
-        guard price > 0 else { throw PortfolioOperationError.invalidPrice }
-    }
 }

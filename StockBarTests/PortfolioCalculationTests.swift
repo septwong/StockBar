@@ -177,46 +177,6 @@ final class PortfolioCalculationTests: XCTestCase {
         XCTAssertEqual(position.holding.costPrice, Decimal(string: "5.991")!)
     }
 
-    func testLegacyClearLedgerLeavesZeroAssetsButRetainsRealizedPnl() {
-        let symbol = SymbolID(code: "600519", market: .a)
-        let holdingID = UUID()
-        let opening = PortfolioTransaction(
-            holdingID: holdingID,
-            symbol: symbol,
-            name: "Test",
-            type: .openingBalance,
-            quantity: 10,
-            price: 10,
-            occurredAt: date("2026-08-20T01:00:00Z")
-        )
-        let clear = PortfolioTransaction(
-            holdingID: holdingID,
-            symbol: symbol,
-            name: "Test",
-            type: .clear,
-            quantity: 10,
-            price: 15,
-            fee: 2,
-            occurredAt: date("2026-08-24T01:00:00Z")
-        )
-        let quote = quote(price: 15, prevClose: 15, for: symbol)
-
-        let snapshot = PortfolioService.computeSnapshotSync(
-            holdings: [],
-            transactions: [opening, clear],
-            quotes: [symbol: quote],
-            converter: .empty,
-            baseCurrency: .cny,
-            asOf: date("2026-08-24T02:00:00Z")
-        )
-
-        XCTAssertEqual(snapshot.totalAssets, 0)
-        XCTAssertEqual(snapshot.allTimePnL, 48)
-        XCTAssertEqual(snapshot.historicalCostBase, 100)
-        XCTAssertEqual(snapshot.todayPnL, 0)
-        XCTAssertEqual(snapshot.allTimePnLPct, 0.48, accuracy: 0.000_000_1)
-    }
-
     func testClearDeletesHoldingHistoryAndRebuyStartsFresh() throws {
         let path = FileManager.default.temporaryDirectory
             .appendingPathComponent("stockbar-clear-cycle-\(UUID().uuidString).sqlite").path
@@ -275,9 +235,9 @@ final class PortfolioCalculationTests: XCTestCase {
         XCTAssertEqual(snapshot.todayPnL, Decimal(string: "226.5")!)
     }
 
-    func testLegacyClearCycleIsTrimmedBeforeRebuy() throws {
+    func testImportedHoldingResetsOnlyThatSymbolToAnOpeningSnapshot() throws {
         let path = FileManager.default.temporaryDirectory
-            .appendingPathComponent("stockbar-legacy-clear-migration-\(UUID().uuidString).sqlite").path
+            .appendingPathComponent("stockbar-import-snapshot-\(UUID().uuidString).sqlite").path
         defer {
             for suffix in ["", "-wal", "-shm"] {
                 try? FileManager.default.removeItem(atPath: path + suffix)
@@ -285,53 +245,43 @@ final class PortfolioCalculationTests: XCTestCase {
         }
 
         let database = try StockBar.Database(path: path)
+        let operations = PortfolioOperationService(dbPool: database.dbPool)
         let holdingsRepo = HoldingsRepository(dbPool: database.dbPool)
         let transactionsRepo = PortfolioTransactionsRepository(dbPool: database.dbPool)
-        let symbol = SymbolID(code: "000567", market: .a)
-        let holdingID = UUID()
-        let oldDate = date("2026-08-20T01:00:00Z")
-        let clearDate = date("2026-08-24T01:00:00Z")
-        let rebuyDate = date("2026-08-25T01:00:00Z")
-        let holding = Holding(
-            id: holdingID,
-            symbol: symbol,
-            name: "Test",
-            quantity: 500,
-            costPrice: Decimal(string: "5.757")!,
-            createdAt: oldDate
+        let importedSymbol = SymbolID(code: "000567", market: .a)
+        let untouchedSymbol = SymbolID(code: "600519", market: .a)
+
+        let original = try operations.buy(
+            symbol: importedSymbol,
+            name: "Original",
+            quantity: 100,
+            price: 10,
+            occurredAt: date("2026-08-20T01:00:00Z")
         )
-        let legacyTransactions = [
-            PortfolioTransaction(
-                holdingID: holdingID, symbol: symbol, name: "Test", type: .openingBalance,
-                quantity: 1000, price: Decimal(string: "5.991")!, occurredAt: oldDate
-            ),
-            PortfolioTransaction(
-                holdingID: holdingID, symbol: symbol, name: "Test", type: .sell,
-                quantity: 500, price: Decimal(string: "6.23")!, occurredAt: clearDate
-            ),
-            PortfolioTransaction(
-                holdingID: holdingID, symbol: symbol, name: "Test", type: .clear,
-                quantity: 500, price: Decimal(string: "6.18")!, occurredAt: clearDate.addingTimeInterval(60)
-            ),
-            PortfolioTransaction(
-                holdingID: holdingID, symbol: symbol, name: "Test", type: .buy,
-                quantity: 500, price: Decimal(string: "5.757")!, occurredAt: rebuyDate
-            )
-        ]
+        _ = try operations.buy(
+            symbol: untouchedSymbol,
+            name: "Untouched",
+            quantity: 20,
+            price: 20,
+            occurredAt: date("2026-08-20T01:00:00Z")
+        )
 
-        try database.dbPool.write { db in
-            try HoldingsRepository.upsert(holding, in: db)
-            for transaction in legacyTransactions {
-                try PortfolioTransactionsRepository.insert(transaction, in: db)
-            }
-            try PortfolioTransactionsRepository.removeLegacyClearCycles(in: db)
-        }
+        let imported = Holding(
+            symbol: importedSymbol,
+            name: "Imported",
+            quantity: 50,
+            costPrice: Decimal(string: "5.757")!,
+            createdAt: date("2026-08-27T04:00:00Z")
+        )
+        let result = try operations.recordImportedHolding(imported)
 
-        let remaining = try transactionsRepo.all(for: holdingID)
-        XCTAssertEqual(remaining.map(\.type), [.buy])
-        XCTAssertEqual(try holdingsRepo.find(id: holdingID)?.quantity, 500)
-        XCTAssertEqual(try holdingsRepo.find(id: holdingID)?.costPrice, Decimal(string: "5.757")!)
-        XCTAssertEqual(try holdingsRepo.find(id: holdingID)?.createdAt, rebuyDate)
+        XCTAssertEqual(result.id, original.id)
+        XCTAssertEqual(result.name, "Imported")
+        XCTAssertEqual(result.quantity, 50)
+        XCTAssertEqual(result.costPrice, Decimal(string: "5.757")!)
+        XCTAssertEqual(try transactionsRepo.all(for: original.id).map(\.type), [.openingBalance])
+        XCTAssertEqual(Set(try holdingsRepo.all().map(\.symbol)), Set([untouchedSymbol, importedSymbol]))
+        XCTAssertEqual(try transactionsRepo.all().filter { $0.symbol == untouchedSymbol }.count, 1)
     }
 
     func testOperationRollbackKeepsTransactionAndHoldingAtomic() throws {
@@ -557,36 +507,6 @@ final class PortfolioCalculationTests: XCTestCase {
         XCTAssertEqual(snapshot.allTimePnL, 697)
         XCTAssertEqual(snapshot.positions.first?.holding.quantity, 90)
         XCTAssertEqual(snapshot.positions.first?.holding.costPrice, Decimal(string: "11.34")!)
-    }
-
-    func testAdjustmentDoesNotCreateRealizedTradingPnl() throws {
-        let symbol = SymbolID(code: "600519", market: .a)
-        let id = UUID()
-        let summary = try PortfolioLedger.replay([
-            PortfolioTransaction(
-                holdingID: id,
-                symbol: symbol,
-                name: "Test",
-                type: .openingBalance,
-                quantity: 100,
-                price: 10,
-                occurredAt: date("2026-08-20T01:00:00Z")
-            ),
-            PortfolioTransaction(
-                holdingID: id,
-                symbol: symbol,
-                name: "Test",
-                type: .adjustment,
-                quantity: 120,
-                price: 12,
-                occurredAt: date("2026-08-24T01:00:00Z")
-            )
-        ])
-
-        XCTAssertEqual(summary.quantity, 120)
-        XCTAssertEqual(summary.averageCost, 12)
-        XCTAssertEqual(summary.realizedPnL, 0)
-        XCTAssertEqual(summary.historicalCostBase, 1000)
     }
 
     func testMarketDayUsesEachMarketTimezone() {

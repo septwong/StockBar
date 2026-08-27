@@ -99,12 +99,7 @@ struct IndexRepository {
     @discardableResult
     func restoreDefaults() throws -> [IndexDescriptor] {
         try dbPool.write { db in
-            let existingIDs = Set(try String.fetchAll(db, sql: "SELECT id FROM indexItem"))
-            var nextOrder = try nextSortOrder(in: db)
-            for descriptor in IndexCatalog.defaults where !existingIDs.contains(descriptor.id) {
-                try IndexRecord.from(descriptor, sortOrder: nextOrder).insert(db)
-                nextOrder += 1
-            }
+            try Self.seedMissing(IndexCatalog.defaults, in: db)
         }
         return try all()
     }
@@ -120,6 +115,70 @@ struct IndexRepository {
     static func seedDefaults(in db: GRDB.Database) throws {
         for (order, descriptor) in IndexCatalog.defaults.enumerated() {
             try IndexRecord.from(descriptor, sortOrder: order).insert(db)
+        }
+    }
+
+    static func seedMissing(_ descriptors: [IndexDescriptor], in db: GRDB.Database) throws {
+        for descriptor in descriptors {
+            guard try IndexRecord.fetchOne(db, key: descriptor.id) == nil else { continue }
+            let nextOrder = (try Int.fetchOne(
+                db,
+                sql: "SELECT COALESCE(MAX(sortOrder), -1) + 1 FROM indexItem"
+            )) ?? 0
+            try IndexRecord.from(descriptor, sortOrder: nextOrder).insert(db)
+        }
+    }
+
+    /// 在指定指数前插入缺失项，并为后续项目让出一个排序位置。
+    static func insertMissing(
+        _ descriptor: IndexDescriptor,
+        beforeID: String,
+        in db: GRDB.Database
+    ) throws {
+        guard try IndexRecord.fetchOne(db, key: descriptor.id) == nil else { return }
+
+        let order = try IndexRecord.fetchOne(db, key: beforeID)?.sortOrder ??
+            ((try Int.fetchOne(db, sql: "SELECT COALESCE(MAX(sortOrder), -1) + 1 FROM indexItem")) ?? 0)
+        try db.execute(
+            sql: "UPDATE indexItem SET sortOrder = sortOrder + 1 WHERE sortOrder >= ?",
+            arguments: [order]
+        )
+        try IndexRecord.from(descriptor, sortOrder: order).insert(db)
+    }
+
+    /// 将已有项目移动到指定项目之前，保留其余项目的相对顺序。
+    static func move(id: String, beforeID: String, in db: GRDB.Database) throws {
+        guard let source = try IndexRecord.fetchOne(db, key: id),
+              let target = try IndexRecord.fetchOne(db, key: beforeID),
+              source.id != target.id else { return }
+
+        if source.sortOrder < target.sortOrder {
+            guard source.sortOrder + 1 != target.sortOrder else { return }
+            try db.execute(
+                sql: """
+                UPDATE indexItem
+                SET sortOrder = sortOrder - 1
+                WHERE sortOrder > ? AND sortOrder < ?
+                """,
+                arguments: [source.sortOrder, target.sortOrder]
+            )
+            try db.execute(
+                sql: "UPDATE indexItem SET sortOrder = ? WHERE id = ?",
+                arguments: [target.sortOrder - 1, id]
+            )
+        } else {
+            try db.execute(
+                sql: """
+                UPDATE indexItem
+                SET sortOrder = sortOrder + 1
+                WHERE sortOrder >= ? AND sortOrder < ?
+                """,
+                arguments: [target.sortOrder, source.sortOrder]
+            )
+            try db.execute(
+                sql: "UPDATE indexItem SET sortOrder = ? WHERE id = ?",
+                arguments: [target.sortOrder, id]
+            )
         }
     }
 

@@ -185,11 +185,19 @@ enum Migrations {
             }
         }
 
-        // Before v10, clearing a position inserted a sell-like transaction
-        // and later buys reused the same holding ID. Start a new cycle by
-        // removing everything through the latest legacy clear.
-        migrator.registerMigration("v10_clear_position_cycles") { db in
-            try PortfolioTransactionsRepository.removeLegacyClearCycles(in: db)
+        migrator.registerMigration("v11_add_market_indices") { db in
+            if let star50 = IndexCatalog.defaults.first(where: { $0.id == "SH000688" }) {
+                try IndexRepository.insertMissing(star50, beforeID: "SH000300", in: db)
+            }
+            if let csi1000 = IndexCatalog.defaults.first(where: { $0.id == "SH000852" }) {
+                try IndexRepository.insertMissing(csi1000, beforeID: "HSI", in: db)
+            }
+        }
+
+        // v11 早期版本曾把新增指数追加到末尾；把已存在的项目移动到当前默认顺序。
+        migrator.registerMigration("v12_order_market_indices") { db in
+            try IndexRepository.move(id: "SH000688", beforeID: "SH000300", in: db)
+            try IndexRepository.move(id: "SH000852", beforeID: "HSI", in: db)
         }
 
         try migrator.migrate(dbPool)
