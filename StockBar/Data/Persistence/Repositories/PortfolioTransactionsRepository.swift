@@ -158,6 +158,10 @@ struct PortfolioTransactionsRepository {
         return record.toDomain()
     }
 
+    static func delete(id: UUID, in db: GRDB.Database) throws -> Bool {
+        try PortfolioTransactionRecord.deleteOne(db, key: id.uuidString)
+    }
+
     static func deleteAll(in db: GRDB.Database) throws {
         try PortfolioTransactionRecord.deleteAll(db)
     }

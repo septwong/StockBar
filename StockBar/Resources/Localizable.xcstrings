@@ -5617,6 +5617,40 @@
         }
       }
     },
+    "trade.deleteBody" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The holding and portfolio metrics will be recalculated. This action cannot be undone."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除后会重新计算持仓和组合收益，此操作无法撤销。"
+          }
+        }
+      }
+    },
+    "trade.deleteTitle" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete this transaction?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确定删除这条交易记录？"
+          }
+        }
+      }
+    },
     "trade.feeStatusConfirmed" : {
       "extractionState" : "stale",
       "localizations" : {

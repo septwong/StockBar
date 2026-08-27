@@ -330,6 +330,7 @@ struct PortfolioHistorySheet: View {
     @State private var entries: [PortfolioTransactionEntry] = []
     @State private var error: String?
     @State private var editingFeeTransaction: PortfolioTransaction?
+    @State private var deletingEntry: PortfolioTransactionEntry?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -373,6 +374,16 @@ struct PortfolioHistorySheet: View {
                 editingFeeTransaction = nil
             })
         }
+        .alert(item: $deletingEntry) { entry in
+            SwiftUI.Alert(
+                title: Text(L("trade.deleteTitle", comment: "")),
+                message: Text(L("trade.deleteBody", comment: "")),
+                primaryButton: .destructive(Text(L("action.delete", comment: ""))) {
+                    delete(entry)
+                },
+                secondaryButton: .cancel(Text(L("action.cancel", comment: "")))
+            )
+        }
     }
 
     private func load() {
@@ -407,6 +418,15 @@ struct PortfolioHistorySheet: View {
                 Text(formatDate(transaction.occurredAt, market: transaction.symbol.market))
                     .font(.caption)
                     .foregroundColor(.secondary)
+                Button {
+                    deletingEntry = entry
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.borderless)
+                .foregroundColor(.secondary)
+                .help(L("action.delete", comment: ""))
+                .accessibilityLabel(L("action.delete", comment: ""))
             }
             HStack(spacing: 8) {
                 Text(String(format: L("trade.historyQuantity", comment: ""), decimalText(transaction.quantity)))
@@ -433,6 +453,20 @@ struct PortfolioHistorySheet: View {
             if let note = transaction.note, !note.isEmpty {
                 Text(note).font(.caption2).foregroundColor(.secondary)
             }
+        }
+    }
+
+    private func delete(_ entry: PortfolioTransactionEntry) {
+        guard let container else {
+            error = L("error.operationUnavailable", comment: "")
+            return
+        }
+        do {
+            _ = try container.portfolioOperations.deleteTransaction(transactionID: entry.transaction.id)
+            load()
+            container.refresher.refreshNow()
+        } catch {
+            self.error = error.localizedDescription
         }
     }
 

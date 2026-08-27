@@ -300,6 +300,90 @@ final class PortfolioCalculationTests: XCTestCase {
         XCTAssertEqual(entries.first(where: { $0.transaction.type == .sell })?.realizedPnL, Decimal(string: "93.5")!)
     }
 
+    func testDeletingTransactionReplaysHoldingFromRemainingHistory() throws {
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent("stockbar-transaction-delete-\(UUID().uuidString).sqlite").path
+        defer {
+            for suffix in ["", "-wal", "-shm"] {
+                try? FileManager.default.removeItem(atPath: path + suffix)
+            }
+        }
+
+        let database = try StockBar.Database(path: path)
+        let operations = PortfolioOperationService(dbPool: database.dbPool)
+        let transactionsRepo = PortfolioTransactionsRepository(dbPool: database.dbPool)
+        let symbol = SymbolID(code: "600519", market: .a)
+        let initial = try operations.buy(
+            symbol: symbol,
+            name: "Test",
+            quantity: 100,
+            price: 10,
+            occurredAt: date("2026-08-20T01:00:00Z")
+        )
+        _ = try operations.buy(
+            symbol: symbol,
+            name: "Test",
+            quantity: 50,
+            price: 14,
+            fee: 1,
+            occurredAt: date("2026-08-21T01:00:00Z")
+        )
+        _ = try operations.sell(
+            holdingID: initial.id,
+            quantity: 60,
+            price: 16,
+            fee: 2,
+            occurredAt: date("2026-08-22T01:00:00Z")
+        )
+
+        let sellID = try XCTUnwrap(
+            transactionsRepo.all(for: initial.id).first(where: { $0.type == .sell })?.id
+        )
+        let updated = try operations.deleteTransaction(transactionID: sellID)
+
+        XCTAssertEqual(updated.quantity, 150)
+        XCTAssertEqual(updated.costPrice, Decimal(string: "11.34")!)
+        XCTAssertEqual(try transactionsRepo.all(for: initial.id).count, 2)
+        XCTAssertEqual(try operations.history(for: initial.id).count, 2)
+    }
+
+    func testDeletingTransactionRollsBackWhenRemainingHistoryIsInvalid() throws {
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent("stockbar-transaction-delete-rollback-\(UUID().uuidString).sqlite").path
+        defer {
+            for suffix in ["", "-wal", "-shm"] {
+                try? FileManager.default.removeItem(atPath: path + suffix)
+            }
+        }
+
+        let database = try StockBar.Database(path: path)
+        let operations = PortfolioOperationService(dbPool: database.dbPool)
+        let transactionsRepo = PortfolioTransactionsRepository(dbPool: database.dbPool)
+        let symbol = SymbolID(code: "600519", market: .a)
+        let initial = try operations.buy(
+            symbol: symbol,
+            name: "Test",
+            quantity: 100,
+            price: 10,
+            occurredAt: date("2026-08-20T01:00:00Z")
+        )
+        _ = try operations.sell(
+            holdingID: initial.id,
+            quantity: 60,
+            price: 12,
+            occurredAt: date("2026-08-21T01:00:00Z")
+        )
+        let openingID = try XCTUnwrap(
+            transactionsRepo.all(for: initial.id).first(where: { $0.type == .buy })?.id
+        )
+
+        XCTAssertThrowsError(try operations.deleteTransaction(transactionID: openingID)) { error in
+            XCTAssertEqual(error as? PortfolioOperationError, .oversell)
+        }
+        XCTAssertEqual(try transactionsRepo.all(for: initial.id).count, 2)
+        XCTAssertEqual(try HoldingsRepository(dbPool: database.dbPool).find(id: initial.id)?.quantity, 40)
+    }
+
     func testTodayBuyAndSellUseCashFlowsWithoutFees() throws {
         let symbol = SymbolID(code: "600519", market: .a)
         let holdingID = UUID()

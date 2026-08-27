@@ -262,6 +262,30 @@ struct PortfolioOperationService {
         }
     }
 
+    /// Deletes one transaction and rebuilds the materialized holding from the
+    /// remaining history. The write transaction rolls back if the remaining
+    /// history is no longer valid (for example, a later sell would oversell).
+    @discardableResult
+    func deleteTransaction(transactionID: UUID) throws -> Holding {
+        try dbPool.write { db in
+            let transactions = try PortfolioTransactionsRepository.all(in: db)
+            guard let transaction = transactions.first(where: { $0.id == transactionID }) else {
+                throw PortfolioOperationError.noTransaction
+            }
+            guard let holding = try HoldingsRepository.find(
+                id: transaction.holdingID,
+                includingClosed: true,
+                in: db
+            ) else {
+                throw PortfolioOperationError.noHolding
+            }
+            guard try PortfolioTransactionsRepository.delete(id: transactionID, in: db) else {
+                throw PortfolioOperationError.noTransaction
+            }
+            return try materialize(holding, in: db)
+        }
+    }
+
     func deleteHoldingAndHistory(id: UUID) throws {
         try dbPool.write { db in
             try PortfolioTransactionsRepository(dbPool: dbPool).deleteAll(for: id, in: db)
