@@ -185,7 +185,7 @@ final class PopoverController {
         guard let quote else {
             return textWidth("—", size: 12, weight: .semibold)
         }
-        let price = holding.currency.format(quote.price)
+        let price = holding.currency.formatQuote(quote.price)
         let pct = String(format: "%+.2f%%", quote.changePct * 100)
         return textWidth(price, size: 12, weight: .semibold)
             + 5

@@ -41,6 +41,11 @@ final class TickerFeatureTests: XCTestCase {
         XCTAssertEqual(SingleQuoteTickerView.formattedPrice(nil), "--")
         XCTAssertEqual(SingleQuoteTickerView.formattedChange(nil), "--")
     }
+
+    func testQuoteFormattingKeepsOptionalThirdDecimal() {
+        XCTAssertEqual(Currency.cny.formatQuote(Decimal(string: "1.139")!), "¥1.139")
+        XCTAssertEqual(Currency.cny.formatQuote(Decimal(string: "6.89")!), "¥6.89")
+    }
 }
 
 @MainActor

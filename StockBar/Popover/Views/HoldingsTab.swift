@@ -195,7 +195,7 @@ struct HoldingsTab: View {
         guard let quote else {
             return textWidth("—", size: 12, weight: .semibold)
         }
-        let price = holding.currency.format(quote.price)
+        let price = holding.currency.formatQuote(quote.price)
         let pct = String(format: "%+.2f%%", quote.changePct * 100)
         return textWidth(price, size: 12, weight: .semibold)
             + 5
@@ -377,7 +377,7 @@ private struct HoldingRow: View {
     private var quoteHeader: some View {
         HStack(spacing: 5) {
             if let q = quote {
-                Text(holding.currency.format(q.price))
+                Text(holding.currency.formatQuote(q.price))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.primary)
                     .monospacedDigit()
