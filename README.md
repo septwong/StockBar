@@ -39,6 +39,20 @@ sudo xattr -rd com.apple.quarantine /Applications/StockBar.app
 
 执行时需要输入当前 Mac 用户的登录密码；终端不会显示输入的密码或占位符，这是正常现象。该命令应仅用于上述明确的 StockBar 应用路径，请勿对“应用程序”目录或其他宽泛路径批量执行。
 
+如果希望恢复旧版 macOS 中的“允许从任何来源安装应用”选项，可以在“终端”执行：
+
+```bash
+sudo spctl --master-disable
+```
+
+输入 Mac 登录密码后，打开“系统设置 → 隐私与安全性 → 安全性 → 允许以下来源的应用程序”，通常即可看到并选择“任何来源”。
+
+这会降低 macOS 对所有下载应用的安全拦截能力。如果只是为了运行 StockBar，更建议使用上面的单独放行方式。之后如需恢复 macOS 默认的安全检查，请执行：
+
+```bash
+sudo spctl --master-enable
+```
+
 每个 Release 同时提供 `SHA256SUMS.txt`。可在终端中校验：
 
 ```bash
