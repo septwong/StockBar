@@ -393,7 +393,7 @@ struct PortfolioHistorySheet: View {
             }
             HStack(spacing: 8) {
                 Text(String(format: L("trade.historyQuantity", comment: ""), decimalText(transaction.quantity)))
-                Text(String(format: L("trade.historyPrice", comment: ""), transaction.currency.format(transaction.price)))
+                Text(String(format: L("trade.historyPrice", comment: ""), transaction.currency.format(transaction.price, fractionDigits: 3)))
                 if canEditFee(transaction.type) {
                     Text(String(format: L("trade.historyFee", comment: ""), transaction.currency.format(transaction.fee)))
                     Text(feeStatusName(transaction.feeStatus))
