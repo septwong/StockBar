@@ -97,7 +97,7 @@ final class AlertEngine {
     }
 
     private func alertBody(alert: Alert, quote: Quote) -> String {
-        let priceText = alert.symbol.market.defaultCurrency.format(quote.price)
+        let priceText = alert.symbol.market.defaultCurrency.formatQuote(quote.price)
         let pctText = String(format: "%+.2f%%", quote.changePct * 100)
 
         var parts: [String] = []
@@ -113,10 +113,10 @@ final class AlertEngine {
         switch cond {
         case .priceAbove:
             return String(format: L("alert.body.priceAbove", comment: ""),
-                          price, alert.symbol.market.defaultCurrency.format(threshold))
+                          price, alert.symbol.market.defaultCurrency.formatQuote(threshold))
         case .priceBelow:
             return String(format: L("alert.body.priceBelow", comment: ""),
-                          price, alert.symbol.market.defaultCurrency.format(threshold))
+                          price, alert.symbol.market.defaultCurrency.formatQuote(threshold))
         case .changePctAbove:
             return String(format: L("alert.body.changePctAbove", comment: ""),
                           pct, decimalToPercent(threshold))

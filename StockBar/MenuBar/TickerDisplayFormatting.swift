@@ -15,7 +15,7 @@ enum TickerDisplayFormatting {
         DecimalFormatting.string(
             price,
             minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
+            maximumFractionDigits: 3,
             usesGroupingSeparator: false
         ) ?? "\(price)"
     }

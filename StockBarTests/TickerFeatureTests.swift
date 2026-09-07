@@ -33,8 +33,11 @@ final class TickerFeatureTests: XCTestCase {
         XCTAssertEqual(SingleQuoteSelection.defaultSymbol(in: candidates), shared)
     }
 
-    func testSingleQuoteFormattingUsesTwoDecimalsAndPlaceholders() {
+    func testSingleQuoteFormattingKeepsOptionalThirdDecimalAndPlaceholders() {
         XCTAssertEqual(TickerDisplayFormatting.price(Decimal(string: "12.3")!), "12.30")
+        XCTAssertEqual(TickerDisplayFormatting.price(Decimal(string: "1.139")!), "1.139")
+        XCTAssertEqual(SingleQuoteTickerView.formattedPrice(Decimal(string: "1.139")!), "1.139")
+        XCTAssertEqual(TickerDisplayFormatting.price(Decimal(string: "1.1386")!), "1.139")
         XCTAssertEqual(TickerDisplayFormatting.percent(-0.0183), "-1.83%")
         XCTAssertEqual(TickerDisplayFormatting.percent(0.0062), "+0.62%")
         XCTAssertEqual(TickerDisplayFormatting.percent(-0.0), "+0.00%")

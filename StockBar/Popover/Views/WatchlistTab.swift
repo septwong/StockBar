@@ -105,7 +105,7 @@ private struct WatchRow: View {
             Spacer()
             if let q = quote {
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(item.symbol.market.defaultCurrency.format(q.price))
+                    Text(item.symbol.market.defaultCurrency.formatQuote(q.price))
                         .font(.system(size: 12, weight: .semibold))
                         .monospacedDigit()
                     Text(String(format: "%+.2f%%", q.changePct * 100))
